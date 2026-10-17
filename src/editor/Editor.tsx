@@ -117,7 +117,7 @@ export default function Editor() {
     restartTurn.current();
   };
 
-  // 1–6 pick a face from anywhere but a text field.
+  // 1–5 pick a face from anywhere but a text field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -268,7 +268,7 @@ export default function Editor() {
             Typeface
           </span>
           <VariantPicker value={settings.variant} onChange={choose} labelledBy="variant-label" />
-          <p className="hint hint-keys">Pick a face to morph into it, or press 1–6.</p>
+          <p className="hint hint-keys">Pick a face to morph into it, or press 1–5.</p>
           <button type="button" role="switch" className="switch-row" aria-checked={autoplay} onClick={() => setAutoplay((a) => !a)}>
             Autoplay through every face
             <span className="switch" aria-hidden="true">

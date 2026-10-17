@@ -28,7 +28,7 @@ const HEADER = `/**
  *   <PixelMorph text="hello world" fontSize={96} variant="circle" />
  *
  * Every pixel of the text is drawn on a canvas in the shape of the chosen face
- * (square, triangle, circle, grid or line), or 'salad', every pixel in a face of its own. Change \`variant\` and each pixel
+ * (square, triangle, circle, grid or line). Change \`variant\` and each pixel
  * morphs into the new shape: solid squares break into dots, dots sharpen into
  * triangles. \`cycle\` keeps it going on its own. Needs React 18 or later;
  * nothing else, not even the font: the pixels of all 420 characters are below.
@@ -112,7 +112,7 @@ Text in Geist Pixel that morphs between its five faces. One React component in o
 | prop            | default           | what it does                                                        |
 | --------------- | ----------------- | ------------------------------------------------------------------- |
 | \`text\`          |                   | the text; newlines start a new line, and lines wrap to fit          |
-| \`variant\`       | \`'square'\`        | Geist Pixel face: square, triangle, circle, grid or line, or salad (a random mix). Changing it morphs every pixel into the new face |
+| \`variant\`       | \`'square'\`        | Geist Pixel face: square, triangle, circle, grid or line. Changing it morphs every pixel into the new face |
 | \`fontSize\`      | \`64\`              | px; one pixel of the font is 0.038 of it                            |
 | \`letterSpacing\` | \`0\`               | extra space after each character, in px                             |
 | \`lineSpacing\`   | \`fontSize / 5\`    | extra space between lines, in px                                    |

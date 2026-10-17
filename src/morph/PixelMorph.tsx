@@ -183,7 +183,7 @@ export default function PixelMorph({
     }
     const at = typed.current!.at;
     const born = at.some((t) => t > 0) ? Float64Array.from(laid.sources, (i) => at[i] ?? 0) : null;
-    painterRef.current?.setScene(laid.pixels, cell, { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, born, laid.lanes);
+    painterRef.current?.setScene(laid.pixels, cell, { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, born);
     // `text` is what `laid` was laid out from; it changes only together with it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [laid, cell, frame.left, frame.top, frame.width, frame.height]);

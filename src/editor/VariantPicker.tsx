@@ -56,17 +56,9 @@ export default function VariantPicker({ value, onChange, labelledBy }: Props) {
           onClick={() => onChange(v)}
           onKeyDown={keys}
         >
-          {v === 'salad' ? (
-            // A mix: each letter in a face of its own.
-            <span className="variant-sample" aria-hidden="true">
-              <span style={{ fontFamily: `"${fontFamily('triangle')}", monospace` }}>A</span>
-              <span style={{ fontFamily: `"${fontFamily('circle')}", monospace` }}>a</span>
-            </span>
-          ) : (
-            <span className="variant-sample" aria-hidden="true" style={{ fontFamily: `"${fontFamily(v)}", monospace` }}>
-              Aa
-            </span>
-          )}
+          <span className="variant-sample" aria-hidden="true" style={{ fontFamily: `"${fontFamily(v)}", monospace` }}>
+            Aa
+          </span>
           <span className="variant-name">{variantLabel(v)}</span>
         </button>
       ))}
