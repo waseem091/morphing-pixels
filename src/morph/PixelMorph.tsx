@@ -91,17 +91,27 @@ export default function PixelMorph({
   const cycleKey = faces ? faces.join(' ') : '';
   const [turns, setTurns] = useState(0);
   const face = faces && faces.length > 1 ? faces[(Math.max(0, faces.indexOf(variant)) + turns) % faces.length] : variant;
-  useEffect(() => {
-    if (!cycleKey.includes(' ')) return;
-    const timer = window.setInterval(() => setTurns((t) => t + 1), duration + hold);
-    return () => window.clearInterval(timer);
-  }, [cycleKey, duration, hold]);
 
   // Read by the effects below without restarting them.
-  const latest = useRef({ face, duration, appear, replayFrom, onMissingGlyphs });
+  const latest = useRef({ face, duration, hold, appear, replayFrom, onMissingGlyphs });
   useLayoutEffect(() => {
-    latest.current = { face, duration, appear, replayFrom, onMissingGlyphs };
+    latest.current = { face, duration, hold, appear, replayFrom, onMissingGlyphs };
   });
+
+  // Each turn of the cycle is timed when it starts, so a new duration or hold
+  // takes over from the next face instead of restarting the wait.
+  useEffect(() => {
+    if (!cycleKey.includes(' ')) return;
+    let timer = 0;
+    const wait = () => {
+      timer = window.setTimeout(() => {
+        setTurns((t) => t + 1);
+        wait();
+      }, latest.current.duration + latest.current.hold);
+    };
+    wait();
+    return () => window.clearTimeout(timer);
+  }, [cycleKey]);
 
   useLayoutEffect(() => {
     const painter = new MorphPainter(canvasRef.current!);

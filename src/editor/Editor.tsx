@@ -104,10 +104,18 @@ export default function Editor() {
   const next = () => pick(VARIANTS[(VARIANTS.indexOf(settings.variant) + 1) % VARIANTS.length]);
 
   // Read by the keyboard and autoplay timers, which outlive any one render.
-  const actions = useRef({ pick, next });
+  const actions = useRef({ pick, next, duration: settings.duration });
   useEffect(() => {
-    actions.current = { pick, next };
+    actions.current = { pick, next, duration: settings.duration };
   });
+
+  // Starts the current face's autoplay turn over; a no-op while autoplay is off.
+  const restartTurn = useRef(() => {});
+  // A face picked by hand gets a full turn of its own before autoplay moves on.
+  const choose = (variant: Variant) => {
+    pick(variant);
+    restartTurn.current();
+  };
 
   // 1–5 pick a face from anywhere but a text field.
   useEffect(() => {
@@ -116,19 +124,36 @@ export default function Editor() {
       const target = e.target as HTMLElement;
       if (target.closest('textarea, input:not([type="range"]), [contenteditable="true"]')) return;
       const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= VARIANTS.length) actions.current.pick(VARIANTS[n - 1]);
+      if (Number.isInteger(n) && n >= 1 && n <= VARIANTS.length) {
+        actions.current.pick(VARIANTS[n - 1]);
+        restartTurn.current();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Autoplay: morph to the next face at once, then keep going round.
+  // Autoplay: morph to the next face at once, then keep going round. Each turn
+  // is timed by the duration its morph started with, so dragging a slider
+  // never moves it on: a new duration takes over from the next face.
   useEffect(() => {
     if (!autoplay) return;
+    let timer = 0;
+    const turn = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        actions.current.next();
+        turn();
+      }, actions.current.duration + HOLD_MS);
+    };
+    restartTurn.current = turn;
     actions.current.next();
-    const timer = window.setInterval(() => actions.current.next(), settings.duration + HOLD_MS);
-    return () => window.clearInterval(timer);
-  }, [autoplay, settings.duration]);
+    turn();
+    return () => {
+      window.clearTimeout(timer);
+      restartTurn.current = () => {};
+    };
+  }, [autoplay]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -242,7 +267,7 @@ export default function Editor() {
           <span className="picker-label" id="variant-label">
             Typeface
           </span>
-          <VariantPicker value={settings.variant} onChange={pick} labelledBy="variant-label" />
+          <VariantPicker value={settings.variant} onChange={choose} labelledBy="variant-label" />
           <p className="hint hint-keys">Pick a face to morph into it, or press 1–5.</p>
           <button type="button" role="switch" className="switch-row" aria-checked={autoplay} onClick={() => setAutoplay((a) => !a)}>
             Autoplay through every face
@@ -343,7 +368,13 @@ export default function Editor() {
         </div>
 
         <div className="buttons">
-          <button type="button" onClick={() => setReplay((r) => r + 1)}>
+          <button
+            type="button"
+            onClick={() => {
+              setReplay((r) => r + 1);
+              restartTurn.current();
+            }}
+          >
             Replay
           </button>
           <button type="button" onClick={() => setSettings((s) => ({ ...defaultSettings(), text: s.text, variant: s.variant }))}>
