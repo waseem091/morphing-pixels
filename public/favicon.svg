@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <style>path { fill: #111; } @media (prefers-color-scheme: dark) { path { fill: #fff; } }</style>
+  <!-- One pixel in four Geist Pixel faces: square, circle, triangle, line. -->
+  <path d="M2 2h12v12H2z" />
+  <path d="M24 2q6 0 6 6t-6 6-6-6 6-6z" />
+  <path d="M8 18l6 12H2z" />
+  <path d="M18 24h12v6H18z" />
+</svg>

@@ -1,0 +1,777 @@
+@font-face {
+  font-family: 'Geist Pixel Square';
+  src: url('/fonts/GeistPixel-Square.woff2') format('woff2');
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Geist Pixel Grid';
+  src: url('/fonts/GeistPixel-Grid.woff2') format('woff2');
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Geist Pixel Circle';
+  src: url('/fonts/GeistPixel-Circle.woff2') format('woff2');
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Geist Pixel Line';
+  src: url('/fonts/GeistPixel-Line.woff2') format('woff2');
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Geist Pixel Triangle';
+  src: url('/fonts/GeistPixel-Triangle.woff2') format('woff2');
+  font-display: block;
+}
+
+:root {
+  /* Emil Kowalski's strong ease-out: starts fast, so the UI feels like it answers the tap. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #fff;
+}
+
+.editor {
+  --panel-w: 320px;
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #fff;
+  color: #111;
+  transition: background-color 200ms var(--ease-out);
+}
+
+.editor :where(button, input, textarea) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  /* The text wraps inside the stage; it never scrolls sideways. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Reserve the scrollbar so it appearing cannot change the width the text wraps to. */
+  scrollbar-gutter: stable;
+  /* The text centres in what the floating panel leaves free. */
+  padding: 56px calc(var(--panel-w) + 48px) 56px 24px;
+}
+
+.stage-text {
+  /* Full width so the text knows its room; auto margins centre it vertically,
+     and fall back to the top when it overflows so the top is never cut off. */
+  width: 100%;
+  min-width: 0;
+  margin: auto 0;
+}
+
+/* ── Top left: the repository ── */
+.chips {
+  position: absolute;
+  z-index: 10;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: #111;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  animation: chip-in 320ms var(--ease-out) both;
+  transition:
+    border-color 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+.chip:active {
+  transform: scale(0.97);
+}
+
+.chip:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
+}
+
+/* ── Customize panel: a card floating over the stage, sized to fit one screen ── */
+.panel {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  right: 16px;
+  translate: 0 -50%;
+  width: var(--panel-w);
+  max-height: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  overflow-y: auto;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-radius: 16px;
+  background: #fff;
+  color: #111;
+  animation: panel-in 360ms var(--ease-out) both;
+  font-size: 13px;
+}
+
+.panel > * {
+  flex-shrink: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Text and Style: only on a phone (see the portrait query below). */
+.tabs {
+  position: relative;
+  display: none;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tab {
+  position: relative;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: color 180ms var(--ease-out);
+}
+
+.tab[aria-pressed='true'] {
+  color: #fff;
+}
+
+.tab:active {
+  transform: scale(0.97);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label,
+.picker-label,
+.row label {
+  font-weight: 500;
+}
+
+.hint {
+  margin: 0;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.has-warning {
+  color: #a15c00;
+}
+
+/* Label and control on one line. */
+.field-inline {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  line-height: 1.4;
+  color: inherit;
+}
+
+/* ── Typeface: a sample of each face in one segmented row ── */
+.variants {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.variant {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: #666;
+  cursor: pointer;
+  transition: color 180ms var(--ease-out);
+}
+
+.variant-sample {
+  font-size: 22px;
+  line-height: 1;
+  color: #111;
+  transition: color 180ms var(--ease-out);
+}
+
+.variant-name {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.variant[aria-checked='true'],
+.variant[aria-checked='true'] .variant-sample {
+  color: #fff;
+}
+
+.variant:active {
+  transform: scale(0.97);
+}
+
+.variant:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
+}
+
+.segments .variant {
+  padding: 6px 0;
+}
+
+.segments .variant-name {
+  font-size: 12px;
+}
+
+/* ── Segmented choices: one pill that slides to the option you pick ── */
+.variants > .slide,
+.tabs > .slide {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px - (var(--n) - 1) * 2px) / var(--n));
+  border-radius: 6px;
+  background: #111;
+  transform: translateX(calc(var(--i) * (100% + 2px)));
+  transition: transform 280ms var(--ease-out);
+  pointer-events: none;
+}
+
+/* ── Sliders: label, track and value share one row ── */
+.sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.row-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-value output {
+  font-weight: 500;
+}
+
+.unit {
+  color: #666;
+  font-size: 12px;
+}
+
+.row input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.row input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #111 var(--p, 50%), rgb(0 0 0 / 0.12) var(--p, 50%));
+}
+
+.row input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #111 var(--p, 50%), rgb(0 0 0 / 0.12) var(--p, 50%));
+}
+
+.row input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: #111;
+  transition: transform 160ms var(--ease-out);
+}
+
+.row input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: #111;
+  transition: transform 160ms var(--ease-out);
+}
+
+.row input[type='range']:active::-webkit-slider-thumb {
+  transform: scale(1.3);
+}
+
+.row input[type='range']:active::-moz-range-thumb {
+  transform: scale(1.3);
+}
+
+/* ── Colours: two side by side, each opening a picker above it ── */
+.colors {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.picker-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.picker-swatch {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    transform 160ms var(--ease-out),
+    border-color 160ms var(--ease-out);
+}
+
+.picker-swatch:active {
+  transform: scale(0.94);
+}
+
+.picker-swatch[aria-expanded='true'] {
+  border-color: #111;
+}
+
+.picker-hex {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  text-transform: lowercase;
+  transition: border-color 160ms var(--ease-out);
+}
+
+.picker-pop {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-radius: 12px;
+  background: #fff;
+  /* Grows out of the swatch that opened it, never from nothing. */
+  transform-origin: 25% 100%;
+  animation: picker-in 160ms var(--ease-out);
+}
+
+.picker:nth-child(2) .picker-pop {
+  transform-origin: 75% 100%;
+}
+
+.picker-sv,
+.picker-hue {
+  position: relative;
+  border-radius: 8px;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.picker-sv {
+  height: 128px;
+  background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
+}
+
+.picker-hue {
+  height: 14px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+
+.picker-thumb {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* ── Focus ── */
+.picker-hex:focus-visible,
+.field textarea:focus-visible {
+  border-color: #111;
+  outline: 2px solid #111;
+  outline-offset: 1px;
+}
+
+.picker-sv:focus-visible,
+.picker-hue:focus-visible,
+.picker-swatch:focus-visible,
+.row input[type='range']:focus-visible,
+.panel button:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
+}
+
+/* ── Buttons: replay and reset ── */
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.buttons button {
+  height: 36px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-weight: 500;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+.buttons button:active {
+  transform: scale(0.97);
+}
+
+/* ── Microinteractions ── */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+@keyframes panel-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes picker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+}
+
+/* A copy that worked: the icon turns into a tick that pops in. */
+@keyframes tick {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-20deg);
+  }
+}
+
+.icon-tick {
+  animation: tick 260ms var(--ease-out);
+}
+
+/* Small lifts for a pointer that hovers; nothing moves for a finger. */
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover,
+  .buttons button:hover {
+    border-color: #999;
+    transform: translateY(-1px);
+  }
+
+  .chip:active,
+  .buttons button:active {
+    transform: scale(0.97);
+  }
+
+  .variant:not([aria-checked='true']):hover .variant-sample,
+  .variant:not([aria-checked='true']):hover {
+    color: #111;
+  }
+
+  .row input[type='range']:hover::-webkit-slider-thumb {
+    transform: scale(1.2);
+  }
+
+  .row input[type='range']:hover::-moz-range-thumb {
+    transform: scale(1.2);
+  }
+}
+
+@media (pointer: coarse) {
+  .row input[type='range']::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+  }
+
+  .row input[type='range']::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* iOS zooms the page into any field with text under 16px. */
+  .field textarea,
+  .picker-hex {
+    font-size: 16px;
+  }
+}
+
+/* ── Phones and short screens: everything in one viewport ── */
+
+@media (max-width: 900px) {
+  .editor {
+    --panel-w: 290px;
+  }
+}
+
+/* Phone portrait: the stage on top takes whatever height the panel leaves, and
+   the controls below the typeface are split into Text and Style. */
+@media (max-width: 760px) and (orientation: portrait) {
+  .editor {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .stage {
+    position: static;
+    /* Room at the top for the button in the corner. */
+    padding: 52px 16px 16px;
+  }
+
+  .panel {
+    position: static;
+    translate: none;
+    animation-name: panel-up;
+    width: auto;
+    max-height: none;
+    margin: 0 12px 12px;
+    /* No inner scroll here, so the colour popover can open over the stage. */
+    overflow: visible;
+  }
+
+  .tabs {
+    display: grid;
+  }
+
+  /* The same height on both tabs, so the stage does not jump when switching. */
+  .group {
+    min-height: 196px;
+  }
+
+  .panel[data-tab='text'] .group:not(.group-text),
+  .panel[data-tab='style'] .group:not(.group-style) {
+    display: none;
+  }
+}
+
+/* Any narrow or short screen: drop what the controls do not need, so the panel
+   fits one screen without scrolling. */
+@media (max-width: 760px), (max-height: 760px) {
+  .panel {
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .group {
+    gap: 10px;
+  }
+
+  .hint-keys,
+  .hint-count:not(.has-warning) {
+    display: none;
+  }
+
+  .field {
+    gap: 4px;
+  }
+
+  .field textarea {
+    min-height: 48px;
+    padding: 6px 10px;
+  }
+
+  .sliders {
+    gap: 2px;
+  }
+
+  .row {
+    min-height: 30px;
+  }
+
+  .buttons button {
+    height: 34px;
+  }
+}
+
+/* Landscape phones: the tightest spacing. */
+@media (max-height: 420px) {
+  .panel {
+    gap: 8px;
+    padding: 10px 16px;
+  }
+
+  .field textarea {
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .row {
+    min-height: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .chip,
+  .icon-tick,
+  .picker-pop {
+    animation: none;
+  }
+
+  .variants > .slide,
+  .tabs > .slide,
+  .editor,
+  .chip,
+  .tab,
+  .variant,
+  .variant-sample,
+  .buttons button,
+  .picker-hex,
+  .picker-swatch,
+  .row input[type='range']::-webkit-slider-thumb,
+  .row input[type='range']::-moz-range-thumb {
+    transition: none;
+  }
+
+  .chip:hover,
+  .buttons button:hover {
+    transform: none;
+  }
+}

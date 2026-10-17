@@ -1,0 +1,122 @@
+/** The five Geist Pixel typefaces. They share one bitmap per character and differ only in how a pixel is drawn. */
+export const VARIANTS = ['square', 'grid', 'circle', 'line', 'triangle'] as const;
+export type Variant = (typeof VARIANTS)[number];
+
+const NAMES: Record<Variant, string> = {
+  square: 'Square',
+  grid: 'Grid',
+  circle: 'Circle',
+  line: 'Line',
+  triangle: 'Triangle',
+};
+
+export const variantLabel = (v: Variant) => NAMES[v];
+export const fontFamily = (v: Variant) => `Geist Pixel ${NAMES[v]}`;
+export const fontFile = (v: Variant) => `GeistPixel-${NAMES[v]}.woff2`;
+export const isVariant = (v: unknown): v is Variant => VARIANTS.includes(v as Variant);
+
+/**
+ * One pixel's outline in its own cell (0–1 across and down, y pointing down),
+ * as eight quadratic segments: [P0, C0, P1, C1, … P7, C7], where segment k
+ * runs from Pk through control Ck to Pk+1. Every shape uses the same eight
+ * points in the same places — top middle, top right, right middle, and so on
+ * clockwise — so a morph is just each point sliding to its place in the next
+ * shape, and any two shapes morph into each other.
+ */
+export type Shape = Float32Array;
+
+type Point = [number, number];
+
+// Straight sides: each control point halfway between its two ends.
+function polygon(points: Point[]): Shape {
+  const shape = new Float32Array(32);
+  for (let k = 0; k < 8; k++) {
+    const [x, y] = points[k];
+    const [nx, ny] = points[(k + 1) % 8];
+    shape.set([x, y, (x + nx) / 2, (y + ny) / 2], k * 4);
+  }
+  return shape;
+}
+
+const SQUARE_POINTS: Point[] = [
+  [0.5, 0],
+  [1, 0],
+  [1, 0.5],
+  [1, 1],
+  [0.5, 1],
+  [0, 1],
+  [0, 0.5],
+  [0, 0],
+];
+
+// The font's own circle: four quadratic quarters with their control points on
+// the corners of the cell, each split in two at its middle so it fits the
+// eight segments. Its controls then sit exactly where the square's do.
+function circle(): Shape {
+  const on: Point[] = [
+    [0.5, 0],
+    [0.875, 0.125],
+    [1, 0.5],
+    [0.875, 0.875],
+    [0.5, 1],
+    [0.125, 0.875],
+    [0, 0.5],
+    [0.125, 0.125],
+  ];
+  const control: Point[] = [
+    [0.75, 0],
+    [1, 0.25],
+    [1, 0.75],
+    [0.75, 1],
+    [0.25, 1],
+    [0, 0.75],
+    [0, 0.25],
+    [0.25, 0],
+  ];
+  const shape = new Float32Array(32);
+  for (let k = 0; k < 8; k++) shape.set([...on[k], ...control[k]], k * 4);
+  return shape;
+}
+
+// Measured from the fonts, in units of a 38-unit cell.
+export const SHAPES: Record<Variant, Shape> = {
+  // The whole cell, so neighbours merge into solid letters.
+  square: polygon(SQUARE_POINTS),
+  // A 30-unit square, 4 units in from each side: neighbours keep a slight gap.
+  grid: polygon(SQUARE_POINTS.map(([x, y]) => [(4 + 30 * x) / 38, (4 + 30 * y) / 38])),
+  // A round dot as wide as the cell.
+  circle: circle(),
+  // A bar the full cell wide on the cell's lower half: neighbours in a row join up.
+  line: polygon(SQUARE_POINTS.map(([x, y]) => [x, 0.5 + y / 2])),
+  // Pointing up, its base the cell's bottom edge. The points are spread evenly
+  // up each side, so a square's top corners slide in to the tip.
+  triangle: polygon([
+    [0.5, 0],
+    [2 / 3, 1 / 3],
+    [5 / 6, 2 / 3],
+    [1, 1],
+    [0.5, 1],
+    [0, 1],
+    [1 / 6, 2 / 3],
+    [1 / 3, 1 / 3],
+  ]),
+};
+
+/** Every point at the middle of the cell: no pixel at all. The text grows out of this when it first appears. */
+export const NOTHING: Shape = new Float32Array(32).fill(0.5);
+
+/** Writes the shape `t` of the way from `a` to `b` into `out`. */
+export function mix(a: Shape, b: Shape, t: number, out: Shape): Shape {
+  for (let i = 0; i < 32; i++) out[i] = a[i] + (b[i] - a[i]) * t;
+  return out;
+}
+
+/** Whether every side is straight, so it can be drawn with lines instead of curves. */
+export function isStraight(s: Shape): boolean {
+  for (let k = 0; k < 8; k++) {
+    const i = k * 4;
+    const j = (i + 4) % 32;
+    if (Math.abs(s[i + 2] - (s[i] + s[j]) / 2) > 1e-4 || Math.abs(s[i + 3] - (s[i + 1] + s[j + 1]) / 2) > 1e-4) return false;
+  }
+  return true;
+}
