@@ -28,6 +28,8 @@ export type LayoutOptions = {
 export type Layout = {
   /** Flat [x, y, …]: each pixel's top-left corner in px, from the top-left of the block. */
   pixels: Float32Array;
+  /** For each pixel, which character of the (NFC-normalised) text it belongs to, counted in code points. */
+  sources: Uint32Array;
   /** The block of line boxes, in px. */
   width: number;
   height: number;
@@ -37,19 +39,22 @@ export type Layout = {
   missing: string[];
 };
 
-type Placed = { cells: Float32Array; x: number };
+type Placed = { cells: Float32Array; source: number; x: number };
 type Line = { glyphs: Placed[]; width: number };
 
 /** Lays the text out in lines, wrapping between words (or, for a word too wide on its own, between letters). */
 export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidth, align }: LayoutOptions): Layout {
   const missing = new Set<string>();
   const lines: Line[] = [];
+  // Which character of the text comes next, newlines included.
+  let at = 0;
 
-  for (const paragraph of text.normalize('NFC').replace(/\r\n?/g, '\n').split('\n')) {
+  for (const paragraph of normalize(text).split('\n')) {
     // Words and the spaces between them, each character with its advance in px.
-    type Char = { cells: Float32Array; advance: number };
+    type Char = { cells: Float32Array; source: number; advance: number };
     const words: { space: boolean; chars: Char[] }[] = [];
     for (const ch of paragraph) {
+      const source = at++;
       const space = /\s/.test(ch);
       const g = glyph(space ? 32 : ch.codePointAt(0)!);
       if (!g) {
@@ -57,7 +62,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
         continue;
       }
       const last = words[words.length - 1];
-      const char = { cells: g.cells, advance: g.advance * cell + letterSpacing };
+      const char = { cells: g.cells, source, advance: g.advance * cell + letterSpacing };
       if (last && last.space === space) last.chars.push(char);
       else words.push({ space, chars: [char] });
     }
@@ -74,7 +79,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
     };
     const place = (chars: Char[]) => {
       for (const c of chars) {
-        line.glyphs.push({ cells: c.cells, x: pen });
+        line.glyphs.push({ cells: c.cells, source: c.source, x: pen });
         pen += c.advance;
       }
       // A line ends at its last letter, not after the spacing that follows it.
@@ -104,6 +109,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
     // Spaces at the very start of a paragraph still push it along; at its end they hang.
     if (line.glyphs.length === 0) place(pending);
     flush();
+    at++; // the newline
   }
 
   const lineHeight = (LINE_ASCENT + LINE_DESCENT) * cell;
@@ -113,6 +119,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
   let count = 0;
   for (const l of lines) for (const g of l.glyphs) count += g.cells.length;
   const pixels = new Float32Array(count);
+  const sources = new Uint32Array(count / 2);
   let left = Infinity;
   let top = Infinity;
   let right = -Infinity;
@@ -125,6 +132,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
       for (let j = 0; j < g.cells.length; j += 2) {
         const x = shift + g.x + g.cells[j] * cell;
         const y = baseline + g.cells[j + 1] * cell;
+        sources[k / 2] = g.source;
         pixels[k++] = x;
         pixels[k++] = y;
         left = Math.min(left, x);
@@ -136,5 +144,10 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
   });
   if (count === 0) left = top = right = bottom = 0;
 
-  return { pixels, width, height, ink: { left, top, right, bottom }, missing: [...missing] };
+  return { pixels, sources, width, height, ink: { left, top, right, bottom }, missing: [...missing] };
+}
+
+/** The text as layout reads it: composed characters (e + ´ is é), and every line break a plain newline. */
+export function normalize(text: string): string {
+  return text.normalize('NFC').replace(/\r\n?/g, '\n');
 }

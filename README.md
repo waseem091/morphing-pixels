@@ -89,6 +89,9 @@ anything: each pixel stays in its cell and changes shape.
   without seams. Other shapes are filled a dozen pixels at a time: one path
   with thousands of outlines gets slower than linearly in Chrome. Picking a
   face mid-morph starts the next morph from the shape on screen.
+- **Typing.** Each pixel knows which character it came from. When the text
+  changes, the characters between the unchanged start and end are new, and
+  their pixels grow out of nothing in 280ms while the rest stay put.
 - **Layout.** Letter and line spacing are in px. Lines wrap between words; a
   word too wide for a line on its own is cut between letters. Characters the
   font has no glyph for are left out, and the editor says which.

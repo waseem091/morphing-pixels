@@ -1,9 +1,11 @@
-import { ease } from './ease';
+import { ease, easeOut } from './ease';
 import { paintPixels } from './paint';
 import { mix, NOTHING, shapeFor, type Shape, type Variant } from './variants';
 
 // iOS Safari refuses to draw a canvas with more device pixels than this.
 const MAX_AREA = 16_000_000;
+// How long a newly typed character takes to grow to full size, in ms.
+const GROW_MS = 280;
 
 /** The part of the block the canvas covers, in px from the block's top-left. */
 export type Frame = { left: number; top: number; width: number; height: number };
@@ -17,6 +19,8 @@ export type Frame = { left: number; top: number; width: number; height: number }
 export class MorphPainter {
   private readonly canvas: HTMLCanvasElement;
   private pixels: Float32Array = new Float32Array(0);
+  // For each pixel, when its character was typed (performance.now() ms), or 0 if it is not growing.
+  private born: Float64Array | null = null;
   private cell = 1;
   private color = '#000';
   private frame: Frame = { left: 0, top: 0, width: 0, height: 0 };
@@ -30,6 +34,7 @@ export class MorphPainter {
   private duration = 0;
   private raf = 0;
   private readonly now = new Float32Array(32);
+  private readonly grown = new Float32Array(32);
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -42,13 +47,20 @@ export class MorphPainter {
     window.removeEventListener('resize', this.onResize);
   }
 
-  /** The pixels to draw (top-left corners in px), one cell's size, and the part of the block the canvas covers. */
-  setScene(pixels: Float32Array, cell: number, frame: Frame) {
+  /**
+   * The pixels to draw (top-left corners in px), one cell's size, the part of
+   * the block the canvas covers, and optionally when each pixel's character
+   * was typed, so new characters grow in instead of popping up.
+   */
+  setScene(pixels: Float32Array, cell: number, frame: Frame, born: Float64Array | null = null) {
     this.pixels = pixels;
+    this.born = born;
     this.cell = cell;
     this.frame = frame;
     this.resize();
-    this.draw(performance.now());
+    const now = performance.now();
+    this.draw(now);
+    if (this.growing(now) && !this.raf) this.raf = requestAnimationFrame(this.tick);
   }
 
   setColor(color: string) {
@@ -90,11 +102,18 @@ export class MorphPainter {
     return mix(this.from, this.to, ease(this.progress(time)), out);
   }
 
+  private growing(time: number): boolean {
+    const born = this.born;
+    if (!born) return false;
+    for (let i = 0; i < born.length; i++) if (time - born[i] < GROW_MS) return true;
+    return false;
+  }
+
   private tick = (time: number) => {
     // rAF's timestamp is when the frame began, which can be a moment before a morph that started in it.
     const now = Math.max(time, performance.now());
     this.draw(now);
-    this.raf = this.progress(now) < 1 ? requestAnimationFrame(this.tick) : 0;
+    this.raf = this.progress(now) < 1 || this.growing(now) ? requestAnimationFrame(this.tick) : 0;
   };
 
   private onResize = () => {
@@ -131,6 +150,25 @@ export class MorphPainter {
     const sy = this.canvas.height / Math.max(1e-6, this.frame.height);
     ctx.setTransform(sx, 0, 0, sy, -this.frame.left * sx, -this.frame.top * sy);
     ctx.fillStyle = this.color;
-    paintPixels(ctx, this.pixels, this.cell, this.shapeAt(time, this.now));
+    const shape = this.shapeAt(time, this.now);
+    if (!this.growing(time)) {
+      paintPixels(ctx, this.pixels, this.cell, shape);
+      return;
+    }
+    // Pixels still growing are drawn smaller, about their cell's middle; the
+    // ones typed in one go share a size, so each edit is one batch.
+    const born = this.born!;
+    const groups = new Map<number, number[]>();
+    for (let i = 0; i < born.length; i++) {
+      const key = time - born[i] < GROW_MS ? born[i] : -1;
+      let group = groups.get(key);
+      if (!group) groups.set(key, (group = []));
+      group.push(this.pixels[i * 2], this.pixels[i * 2 + 1]);
+    }
+    for (const [at, xy] of groups) {
+      const t = at < 0 ? 1 : easeOut(Math.max(0, (time - at) / GROW_MS));
+      for (let i = 0; i < 32; i++) this.grown[i] = 0.5 + (shape[i] - 0.5) * t;
+      paintPixels(ctx, Float32Array.from(xy), this.cell, this.grown);
+    }
   }
 }

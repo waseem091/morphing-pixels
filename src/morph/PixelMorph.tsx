@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ElementType } from 'react';
-import { CELL_EM, layout, type Align } from './layout';
+import { CELL_EM, layout, normalize, type Align } from './layout';
 import { MorphPainter } from './painter';
 import { VARIANTS, type Variant } from './variants';
 
@@ -129,8 +129,33 @@ export default function PixelMorph({
     height: laid.ink.bottom - laid.ink.top + 2 * BLEED,
   };
 
+  // When each character of the text was typed (performance.now() ms), so new
+  // ones grow in; 0 for those that were there from the start.
+  const typed = useRef<{ text: string; at: number[] } | null>(null);
   useLayoutEffect(() => {
-    painterRef.current?.setScene(laid.pixels, cell, { left: frame.left, top: frame.top, width: frame.width, height: frame.height });
+    const next = normalize(text);
+    const prev = typed.current;
+    if (!prev || prev.text !== next) {
+      const a = prev ? [...prev.text] : [];
+      const b = [...next];
+      // Whatever the edit, the characters before and after it stay; the ones between are new.
+      let head = 0;
+      while (head < a.length && head < b.length && a[head] === b[head]) head++;
+      let tail = 0;
+      while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++;
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const now = prev && !reduced ? performance.now() : 0;
+      const kept = prev ? prev.at : [];
+      typed.current = {
+        text: next,
+        at: [...kept.slice(0, head), ...new Array<number>(b.length - head - tail).fill(now), ...kept.slice(a.length - tail)],
+      };
+    }
+    const at = typed.current!.at;
+    const born = at.some((t) => t > 0) ? Float64Array.from(laid.sources, (i) => at[i] ?? 0) : null;
+    painterRef.current?.setScene(laid.pixels, cell, { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, born);
+    // `text` is what `laid` was laid out from; it changes only together with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [laid, cell, frame.left, frame.top, frame.width, frame.height]);
 
   const missing = laid.missing.join('');
