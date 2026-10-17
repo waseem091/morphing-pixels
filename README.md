@@ -90,6 +90,11 @@ anything: each pixel stays in its cell and changes shape.
   without seams. Other shapes are filled a dozen pixels at a time: one path
   with thousands of outlines gets slower than linearly in Chrome. Picking a
   face mid-morph starts the next morph from the shape on screen.
+- **Motion.** The shape on screen is pulled toward the new face by a
+  critically damped spring, each of its 32 numbers with its own speed. A face
+  picked mid-morph changes where the spring pulls, not how fast the pixels are
+  moving, so the motion bends instead of stopping and restarting. Duration sets
+  how long it takes to settle.
 - **Typing.** Each pixel knows which character it came from. When the text
   changes, the characters between the unchanged start and end are new, and
   their pixels grow out of nothing in 280ms while the rest stay put.

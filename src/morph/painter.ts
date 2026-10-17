@@ -1,9 +1,11 @@
-import { ease, easeOut } from './ease';
+import { easeOut } from './ease';
 import { paintPixels } from './paint';
-import { mix, NOTHING, shapeFor, type Shape, type Variant } from './variants';
+import { NOTHING, shapeFor, type Shape, type Variant } from './variants';
 
 // iOS Safari refuses to draw a canvas with more device pixels than this.
 const MAX_AREA = 16_000_000;
+// How many of the spring's time constants a morph takes to settle (see morph).
+const SETTLE = 7.5;
 // How long a newly typed character takes to grow to full size, in ms.
 const GROW_MS = 280;
 
@@ -26,14 +28,21 @@ export class MorphPainter {
   private frame: Frame = { left: 0, top: 0, width: 0, height: 0 };
   private dpr = 1;
 
-  private from: Shape = NOTHING;
+  // The shape on screen, each of its 32 numbers pulled toward the target
+  // shape by a critically damped spring: it keeps its speed when the target
+  // changes mid-morph, so a new face bends the motion instead of stopping it.
+  private readonly now: Shape = NOTHING.slice();
+  private readonly velocity = new Float32Array(32);
   private to: Shape = NOTHING;
   // The face the current (or last) morph is heading for.
   private target: Variant | null = null;
+  // When the spring may start moving (a delayed morph waits until then), and when it last moved.
   private start = 0;
-  private duration = 0;
+  private last = 0;
+  // The spring's angular frequency, per ms; 0 jumps straight to the target.
+  private omega = 0;
+  private settled = true;
   private raf = 0;
-  private readonly now = new Float32Array(32);
   private readonly grown = new Float32Array(32);
 
   constructor(canvas: HTMLCanvasElement) {
@@ -70,37 +79,71 @@ export class MorphPainter {
   }
 
   /**
-   * Morphs into face `to` over `duration` ms, starting after `delay` ms: from
-   * the shape on screen, or from face `from` ('nothing' grows the pixels out
-   * of thin air).
+   * Morphs into face `to`, settling in about `duration` ms, starting after
+   * `delay` ms: from the shape on screen (keeping its speed), or from face
+   * `from` ('nothing' grows the pixels out of thin air).
    */
   morph(to: Variant, { from, duration, delay = 0 }: { from?: Variant | 'nothing'; duration: number; delay?: number }) {
     const now = performance.now();
+    this.step(now);
     const before = from === undefined ? this.target : from === 'nothing' ? null : from;
-    if (from === 'nothing') this.from = NOTHING;
-    else if (from) this.from = shapeFor(from, to);
+    let start: Shape | null = null;
+    if (from === 'nothing') start = NOTHING;
+    else if (from) start = shapeFor(from, to);
     // At rest on a face, start from that face written the best way for this morph.
-    else if (this.target && this.progress(now) >= 1) this.from = shapeFor(this.target, to);
-    // Part way through a morph, start from exactly what is on screen.
-    else this.from = this.shapeAt(now, new Float32Array(32));
+    else if (this.target && this.settled) start = shapeFor(this.target, to);
+    if (start) {
+      this.now.set(start);
+      this.velocity.fill(0);
+    }
     this.to = shapeFor(to, before);
     this.target = to;
     this.start = now + delay;
-    this.duration = duration;
-    if (duration <= 0 && delay <= 0) {
-      this.draw(now);
+    this.last = this.start;
+    // Critically damped, a spring is within half a percent of its target after
+    // about 7.5 / omega, so that is when the morph reads as done.
+    this.omega = duration > 0 ? SETTLE / duration : 0;
+    this.settled = false;
+    if (this.omega === 0 && delay <= 0) this.snap();
+    this.draw(now);
+    if (!this.settled && !this.raf) this.raf = requestAnimationFrame(this.tick);
+  }
+
+  // Moves the spring on to `time`.
+  private step(time: number) {
+    if (this.settled || time <= this.start) return;
+    if (this.omega === 0) {
+      this.snap();
       return;
     }
-    if (!this.raf) this.raf = requestAnimationFrame(this.tick);
+    // Long gaps (a hidden tab) are taken in pieces, so the spring stays exact.
+    let dt = Math.min(time - this.last, 1000);
+    this.last = time;
+    const w = this.omega;
+    let moving = false;
+    while (dt > 0) {
+      const h = Math.min(dt, 32);
+      dt -= h;
+      const decay = Math.exp(-w * h);
+      for (let i = 0; i < 32; i++) {
+        // The exact critically damped solution over h, for offset y and speed v.
+        const y = this.now[i] - this.to[i];
+        const v = this.velocity[i];
+        const c = v + w * y;
+        this.now[i] = this.to[i] + (y + c * h) * decay;
+        this.velocity[i] = (v - w * c * h) * decay;
+      }
+    }
+    for (let i = 0; i < 32; i++) {
+      if (Math.abs(this.now[i] - this.to[i]) > 1e-4 || Math.abs(this.velocity[i]) > 1e-6) moving = true;
+    }
+    if (!moving) this.snap();
   }
 
-  private progress(time: number): number {
-    if (this.duration <= 0) return time >= this.start ? 1 : 0;
-    return Math.min(1, Math.max(0, (time - this.start) / this.duration));
-  }
-
-  private shapeAt(time: number, out: Shape): Shape {
-    return mix(this.from, this.to, ease(this.progress(time)), out);
+  private snap() {
+    this.now.set(this.to);
+    this.velocity.fill(0);
+    this.settled = true;
   }
 
   private growing(time: number): boolean {
@@ -113,8 +156,9 @@ export class MorphPainter {
   private tick = (time: number) => {
     // rAF's timestamp is when the frame began, which can be a moment before a morph that started in it.
     const now = Math.max(time, performance.now());
+    this.step(now);
     this.draw(now);
-    this.raf = this.progress(now) < 1 || this.growing(now) ? requestAnimationFrame(this.tick) : 0;
+    this.raf = !this.settled || this.growing(now) ? requestAnimationFrame(this.tick) : 0;
   };
 
   private onResize = () => {
@@ -154,7 +198,7 @@ export class MorphPainter {
     const d = this.dpr;
     ctx.setTransform(d, 0, 0, d, -this.frame.left * d, -this.frame.top * d);
     ctx.fillStyle = this.color;
-    const shape = this.shapeAt(time, this.now);
+    const shape = this.now;
     if (!this.growing(time)) {
       paintPixels(ctx, this.pixels, this.cell, shape);
       return;
