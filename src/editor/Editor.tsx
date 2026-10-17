@@ -3,11 +3,35 @@ import MorphText from '../morph/MorphText';
 import type { Align } from '../morph/layout';
 import { VARIANTS, type Variant } from '../morph/variants';
 import ColorPicker from './ColorPicker';
+import { Tick } from './icons';
 import { DEFAULT_SETTINGS, LIMITS, type Settings } from './settings';
+import { readSettings, writeSettings } from './url';
 import VariantPicker from './VariantPicker';
 import './editor.css';
 
 const REPO = 'https://github.com/waseem091/geist-pixel-animation';
+
+// Autoplay rests on each face this long after its morph, so it can be seen.
+const HOLD_MS = 900;
+// The address follows the settings once they have rested this long (browsers limit how often it may change).
+const URL_SETTLE_MS = 400;
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Clipboard API is unavailable on insecure origins; fall back to a selection.
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    return ok;
+  }
+}
 
 // The controls, split in two for a phone; a wide screen shows them all.
 const TABS = [
@@ -57,12 +81,14 @@ function Slider({ id, label, value, range: [lo, hi], step, unit, onChange }: Sli
 }
 
 export default function Editor() {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>(() => readSettings(window.location.search));
   // The face the text was in before the current one, so Replay can play that morph again.
   const [previous, setPrevious] = useState<Variant | null>(null);
   const [replay, setReplay] = useState(0);
+  const [autoplay, setAutoplay] = useState(false);
   const [missing, setMissing] = useState<string[]>([]);
   const [tab, setTab] = useState<(typeof TABS)[number][0]>('text');
+  const [shared, setShared] = useState<'done' | 'failed' | null>(null);
 
   const set = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
 
@@ -71,23 +97,52 @@ export default function Editor() {
     setPrevious(settings.variant);
     set({ variant });
   };
+  const next = () => pick(VARIANTS[(VARIANTS.indexOf(settings.variant) + 1) % VARIANTS.length]);
+
+  // Read by the keyboard and autoplay timers, which outlive any one render.
+  const actions = useRef({ pick, next });
+  useEffect(() => {
+    actions.current = { pick, next };
+  });
 
   // 1–5 pick a face from anywhere but a text field.
-  const pickRef = useRef(pick);
-  useEffect(() => {
-    pickRef.current = pick;
-  });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target as HTMLElement;
       if (target.closest('textarea, input:not([type="range"]), [contenteditable="true"]')) return;
       const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= VARIANTS.length) pickRef.current(VARIANTS[n - 1]);
+      if (Number.isInteger(n) && n >= 1 && n <= VARIANTS.length) actions.current.pick(VARIANTS[n - 1]);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // Autoplay: morph to the next face at once, then keep going round.
+  useEffect(() => {
+    if (!autoplay) return;
+    actions.current.next();
+    const timer = window.setInterval(() => actions.current.next(), settings.duration + HOLD_MS);
+    return () => window.clearInterval(timer);
+  }, [autoplay, settings.duration]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const url = `${window.location.pathname}${writeSettings(settings)}${window.location.hash}`;
+      try {
+        if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(null, '', url);
+      } catch {
+        // Some browsers throw when the address changes too often; the next change catches up.
+      }
+    }, URL_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [settings]);
+
+  async function share() {
+    const ok = await copyText(`${window.location.origin}${window.location.pathname}${writeSettings(settings)}`);
+    setShared(ok ? 'done' : 'failed');
+    window.setTimeout(() => setShared(null), 1800);
+  }
 
   return (
     <div className="editor" style={{ background: settings.background }}>
@@ -98,6 +153,27 @@ export default function Editor() {
           </svg>
           GitHub
         </a>
+        <button type="button" className="chip" onClick={share}>
+          {shared === 'done' ? (
+            <Tick />
+          ) : (
+            <svg
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6.5 9.5a3 3 0 0 0 4.24 0l2.12-2.12a3 3 0 0 0-4.24-4.24L7.5 4.26" />
+              <path d="M9.5 6.5a3 3 0 0 0-4.24 0L3.14 8.62a3 3 0 0 0 4.24 4.24l1.12-1.12" />
+            </svg>
+          )}
+          <span aria-live="polite">{shared === 'done' ? 'Link copied' : shared === 'failed' ? 'Copy blocked' : 'Share'}</span>
+        </button>
       </nav>
 
       <div className="stage">
@@ -124,6 +200,12 @@ export default function Editor() {
           </span>
           <VariantPicker value={settings.variant} onChange={pick} labelledBy="variant-label" />
           <p className="hint hint-keys">Pick a face to morph into it, or press 1–5.</p>
+          <button type="button" role="switch" className="switch-row" aria-checked={autoplay} onClick={() => setAutoplay((a) => !a)}>
+            Autoplay through every face
+            <span className="switch" aria-hidden="true">
+              <span className="switch-thumb" />
+            </span>
+          </button>
         </div>
 
         {/* On a phone the rest is split in two; on a wide screen all of it shows and this row is hidden. */}
