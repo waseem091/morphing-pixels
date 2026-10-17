@@ -112,7 +112,13 @@ export default function PixelMorph({
   // The width the text may fill before it wraps.
   useLayoutEffect(() => {
     const el = rootRef.current!;
-    const observer = new ResizeObserver(() => setRoom(el.clientWidth));
+    const measure = () => {
+      const css = getComputedStyle(el);
+      setRoom(el.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight));
+    };
+    // Measured now as well, so the first frame is already wrapped to fit.
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -163,9 +169,23 @@ export default function PixelMorph({
     latest.current.onMissingGlyphs?.([...missing]);
   }, [missing]);
 
-  // The canvas needs a real colour; the root resolves currentColor, var(--x) and the like.
+  // The canvas needs a real colour; the root resolves currentColor, var(--x) and
+  // the like. An inherited colour can change under it when the page switches
+  // theme (a class on <html>, or the system going dark), so look again then.
   useLayoutEffect(() => {
-    painterRef.current?.setColor(getComputedStyle(rootRef.current!).color);
+    const el = rootRef.current!;
+    const apply = () => painterRef.current?.setColor(getComputedStyle(el).color);
+    apply();
+    const dark = window.matchMedia('(prefers-color-scheme: dark)');
+    dark.addEventListener('change', apply);
+    const observer = new MutationObserver(apply);
+    for (const node of [document.documentElement, document.body]) {
+      observer.observe(node, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+    }
+    return () => {
+      dark.removeEventListener('change', apply);
+      observer.disconnect();
+    };
   }, [color]);
 
   const introduced = useRef(false);
@@ -190,17 +210,8 @@ export default function PixelMorph({
     <Tag ref={rootRef} className={className} style={{ display: 'flex', justifyContent: justify, color, ...style }}>
       <span style={HIDDEN}>{text}</span>
       <span aria-hidden="true" style={{ position: 'relative', display: 'block', flex: 'none', width: laid.width, height: laid.height }}>
-        <canvas
-          ref={canvasRef}
-          style={{
-            position: 'absolute',
-            left: frame.left,
-            top: frame.top,
-            width: Math.max(0, frame.width),
-            height: Math.max(0, frame.height),
-            pointerEvents: 'none',
-          }}
-        />
+        {/* The painter sizes it, to a whole number of device pixels. */}
+        <canvas ref={canvasRef} style={{ position: 'absolute', left: frame.left, top: frame.top, pointerEvents: 'none' }} />
       </span>
     </Tag>
   );

@@ -64,6 +64,7 @@ export class MorphPainter {
   }
 
   setColor(color: string) {
+    if (color === this.color) return;
     this.color = color;
     this.draw(performance.now());
   }
@@ -129,6 +130,9 @@ export class MorphPainter {
     return area > 0 ? Math.min(want, Math.sqrt(MAX_AREA / area)) : want;
   }
 
+  // The backing store is a whole number of device pixels, and the element is
+  // sized to exactly that, so the browser shows it one to one instead of
+  // stretching it a fraction and blurring every edge.
   private resize() {
     this.dpr = this.deviceRatio();
     const w = Math.max(1, Math.ceil(this.frame.width * this.dpr));
@@ -137,6 +141,8 @@ export class MorphPainter {
       this.canvas.width = w;
       this.canvas.height = h;
     }
+    this.canvas.style.width = `${w / this.dpr}px`;
+    this.canvas.style.height = `${h / this.dpr}px`;
   }
 
   private draw(time: number) {
@@ -145,10 +151,8 @@ export class MorphPainter {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     if (!this.pixels.length) return;
-    // Device pixels per CSS px, exactly, even after the backing store was rounded up.
-    const sx = this.canvas.width / Math.max(1e-6, this.frame.width);
-    const sy = this.canvas.height / Math.max(1e-6, this.frame.height);
-    ctx.setTransform(sx, 0, 0, sy, -this.frame.left * sx, -this.frame.top * sy);
+    const d = this.dpr;
+    ctx.setTransform(d, 0, 0, d, -this.frame.left * d, -this.frame.top * d);
     ctx.fillStyle = this.color;
     const shape = this.shapeAt(time, this.now);
     if (!this.growing(time)) {
