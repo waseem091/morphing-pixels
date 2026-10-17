@@ -1,4 +1,4 @@
-# Pixel Shift
+# Morphing Pixels
 
 Type anything in Geist Pixel, then switch faces and watch every pixel morph
 into the new one: solid Square letters break down into Circle dots, dots
