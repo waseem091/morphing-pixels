@@ -1,5 +1,5 @@
 /** The five Geist Pixel typefaces. They share one bitmap per character and differ only in how a pixel is drawn. */
-export const VARIANTS = ['square', 'grid', 'circle', 'line', 'triangle'] as const;
+export const VARIANTS = ['square', 'triangle', 'circle', 'grid', 'line'] as const;
 export type Variant = (typeof VARIANTS)[number];
 
 /**

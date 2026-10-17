@@ -66,7 +66,7 @@ page shows.
 
 ## How it works
 
-All five Geist Pixel faces (Square, Grid, Circle, Line, Triangle) put their
+All five Geist Pixel faces (Square, Triangle, Circle, Grid, Line) put their
 pixels on the same 38-unit lattice and share one bitmap per character; they
 only differ in how a single pixel is drawn. So a morph never has to move
 anything: each pixel stays in its cell and changes shape.
