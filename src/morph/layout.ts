@@ -30,6 +30,8 @@ export type Layout = {
   pixels: Float32Array;
   /** For each pixel, which character of the (NFC-normalised) text it belongs to, counted in code points. */
   sources: Uint32Array;
+  /** Each line's characters as laid out, for the selectable copy of the text: where the line starts, and each character with the room it takes (px). */
+  lines: { x: number; top: number; chars: { ch: string; width: number }[] }[];
   /** The block of line boxes, in px. */
   width: number;
   height: number;
@@ -39,7 +41,7 @@ export type Layout = {
   missing: string[];
 };
 
-type Placed = { cells: Float32Array; source: number; x: number };
+type Placed = { cells: Float32Array; source: number; ch: string; advance: number; x: number };
 type Line = { glyphs: Placed[]; width: number };
 
 /** Lays the text out in lines, wrapping between words (or, for a word too wide on its own, between letters). */
@@ -51,7 +53,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
 
   for (const paragraph of normalize(text).split('\n')) {
     // Words and the spaces between them, each character with its advance in px.
-    type Char = { cells: Float32Array; source: number; advance: number };
+    type Char = { cells: Float32Array; source: number; ch: string; advance: number };
     const words: { space: boolean; chars: Char[] }[] = [];
     for (const ch of paragraph) {
       const source = at++;
@@ -62,7 +64,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
         continue;
       }
       const last = words[words.length - 1];
-      const char = { cells: g.cells, source, advance: g.advance * cell + letterSpacing };
+      const char = { cells: g.cells, source, ch: space ? ' ' : ch, advance: g.advance * cell + letterSpacing };
       if (last && last.space === space) last.chars.push(char);
       else words.push({ space, chars: [char] });
     }
@@ -79,7 +81,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
     };
     const place = (chars: Char[]) => {
       for (const c of chars) {
-        line.glyphs.push({ cells: c.cells, source: c.source, x: pen });
+        line.glyphs.push({ cells: c.cells, source: c.source, ch: c.ch, advance: c.advance, x: pen });
         pen += c.advance;
       }
       // A line ends at its last letter, not after the spacing that follows it.
@@ -125,9 +127,11 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
   let right = -Infinity;
   let bottom = -Infinity;
   let k = 0;
+  const copy: Layout['lines'] = [];
   lines.forEach((l, i) => {
     const shift = align === 'center' ? (width - l.width) / 2 : align === 'right' ? width - l.width : 0;
     const baseline = i * (lineHeight + lineSpacing) + LINE_ASCENT * cell;
+    copy.push({ x: shift, top: i * (lineHeight + lineSpacing), chars: l.glyphs.map((g) => ({ ch: g.ch, width: g.advance })) });
     for (const g of l.glyphs) {
       for (let j = 0; j < g.cells.length; j += 2) {
         const x = shift + g.x + g.cells[j] * cell;
@@ -144,7 +148,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
   });
   if (count === 0) left = top = right = bottom = 0;
 
-  return { pixels, sources, width, height, ink: { left, top, right, bottom }, missing: [...missing] };
+  return { pixels, sources, lines: copy, width, height, ink: { left, top, right, bottom }, missing: [...missing] };
 }
 
 /** The text as layout reads it: composed characters (e + ´ is é), and every line break a plain newline. */

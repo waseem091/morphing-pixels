@@ -57,8 +57,9 @@ const [face, setFace] = useState<Variant>('square');
 | `as`              | `'div'`        | the element that holds the text                                    |
 | `onMissingGlyphs` |                | called with characters Geist Pixel has no glyph for (left out)     |
 
-The text is drawn on a canvas, and the same text is in the page, visually hidden, for screen
-readers and search. With `prefers-reduced-motion`, faces change without the morph.
+The text is drawn on a canvas. Over it sit the same characters, invisible, each in a box exactly
+as wide as its pixels' place, so the text can be selected and copied whatever face it is in, even
+mid-morph; screen readers and search read a visually hidden copy. With `prefers-reduced-motion`, faces change without the morph.
 
 `scripts/registry.ts` builds `public/r/pixel-morph.tsx`, `.json` and `.md` on every build by joining
 the modules in `src/morph/` that the site itself renders, so what people install is exactly what the

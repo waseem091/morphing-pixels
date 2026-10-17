@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ElementType } from 'react';
-import { CELL_EM, layout, normalize, type Align } from './layout';
+import { CELL_EM, layout, LINE_ASCENT, LINE_DESCENT, normalize, type Align } from './layout';
 import { MorphPainter } from './painter';
 import { VARIANTS, type Variant } from './variants';
 
@@ -7,6 +7,19 @@ import { VARIANTS, type Variant } from './variants';
 const INTRO_DELAY_MS = 150;
 // Room around the pixels for their antialiased edges, in px.
 const BLEED = 2;
+// The selectable copy of the text over the pixels is invisible; only the
+// highlight of a selection shows, a translucent tint over the pixels.
+const SELECTABLE = 'pixel-morph-text';
+const SELECTION_CSS = `.${SELECTABLE} ::selection { color: transparent; background: rgb(0 110 255 / 0.28); }`;
+// A monospace character is about 0.6em wide, so set at the size where that is
+// its box's width, every character fills its box and a selection has no gaps.
+const MONO_ADVANCE = 0.6;
+const CHAR: CSSProperties = {
+  display: 'inline-block',
+  overflow: 'hidden',
+  verticalAlign: 'top',
+  fontFamily: 'ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace',
+};
 // Off screen but still read by screen readers, found by search and copied with the page.
 const HIDDEN: CSSProperties = {
   position: 'absolute',
@@ -134,6 +147,7 @@ export default function PixelMorph({
   }, []);
 
   const cell = fontSize * CELL_EM;
+  const lineHeight = (LINE_ASCENT + LINE_DESCENT) * cell;
   const laid = useMemo(
     () => layout(text, { cell, letterSpacing, lineSpacing, maxWidth: room > 0 ? room : Infinity, align }),
     [text, cell, letterSpacing, lineSpacing, room, align],
@@ -222,6 +236,26 @@ export default function PixelMorph({
       <span aria-hidden="true" style={{ position: 'relative', display: 'block', flex: 'none', width: laid.width, height: laid.height }}>
         {/* The painter sizes it, to a whole number of device pixels. */}
         <canvas ref={canvasRef} style={{ position: 'absolute', left: frame.left, top: frame.top, pointerEvents: 'none' }} />
+        {/* The same characters, invisible, each in a box exactly as wide as its
+            pixels' place, so the text can be selected and copied whatever face
+            it is in, without needing the font. */}
+        <span className={SELECTABLE} style={{ position: 'absolute', inset: 0, color: 'transparent', cursor: 'text' }}>
+          {laid.lines.map((line, i) => (
+            <span
+              key={i}
+              style={{ position: 'absolute', left: line.x, top: line.top, display: 'block', whiteSpace: 'pre', lineHeight: `${lineHeight}px`, fontSize }}
+            >
+              {line.chars.map((c, j) => (
+                <span key={j} style={{ ...CHAR, width: Math.max(0, c.width), height: lineHeight, fontSize: Math.max(0, c.width) / MONO_ADVANCE }}>
+                  {c.ch}
+                </span>
+              ))}
+              {/* So a copied selection keeps its line breaks. */}
+              {i < laid.lines.length - 1 && '\n'}
+            </span>
+          ))}
+        </span>
+        <style>{SELECTION_CSS}</style>
       </span>
     </Tag>
   );
