@@ -10,7 +10,7 @@ import { readSettings, writeSettings } from './url';
 import VariantPicker from './VariantPicker';
 import './editor.css';
 
-const REPO = 'https://github.com/waseem091/geist-pixel-animation';
+const REPO = 'https://github.com/waseem091/morphing-pixels';
 
 // Autoplay rests on each face this long after its morph, so it can be seen.
 const HOLD_MS = 900;
