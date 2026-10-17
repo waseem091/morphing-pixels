@@ -131,6 +131,14 @@ body {
   transform: scale(0.97);
 }
 
+.chip:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.chip:nth-child(3) {
+  animation-delay: 120ms;
+}
+
 .chip:focus-visible {
   outline: 2px solid #111;
   outline-offset: 2px;
@@ -168,7 +176,7 @@ body {
   gap: 14px;
 }
 
-/* Text and Style: only on a phone (see the portrait query below). */
+/* Text, Style and Color: only on a phone (see the portrait query below). */
 .tabs {
   position: relative;
   display: none;
@@ -617,6 +625,24 @@ body {
   transform: scale(0.97);
 }
 
+.buttons button.primary {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+/* The prompt gets the whole row. */
+.buttons button.prompt {
+  grid-column: 1 / -1;
+}
+
+.buttons button.prompt span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 /* ── Microinteractions ── */
 @keyframes panel-in {
   from {
@@ -671,6 +697,11 @@ body {
     transform: scale(0.97);
   }
 
+  .buttons button.primary:hover {
+    border-color: #333;
+    background: #333;
+  }
+
   .variant:not([aria-checked='true']):hover .variant-sample,
   .variant:not([aria-checked='true']):hover {
     color: #111;
@@ -713,7 +744,7 @@ body {
 }
 
 /* Phone portrait: the stage on top takes whatever height the panel leaves, and
-   the controls below the typeface are split into Text and Style. */
+   the controls below the typeface are split into Text, Style and Color. */
 @media (max-width: 760px) and (orientation: portrait) {
   .editor {
     display: grid;
@@ -741,13 +772,19 @@ body {
     display: grid;
   }
 
-  /* The same height on both tabs, so the stage does not jump when switching. */
+  /* The same height on every tab, so the stage does not jump when switching. */
   .group {
-    min-height: 196px;
+    min-height: 126px;
   }
 
   .panel[data-tab='text'] .group:not(.group-text),
-  .panel[data-tab='style'] .group:not(.group-style) {
+  .panel[data-tab='style'] .group:not(.group-style),
+  .panel[data-tab='color'] .group:not(.group-color) {
+    display: none;
+  }
+
+  /* The samples say what they are; the label stays for screen readers. */
+  .field-face > .picker-label {
     display: none;
   }
 }
@@ -765,6 +802,7 @@ body {
   }
 
   .hint-keys,
+  .hint-install,
   .hint-count:not(.has-warning) {
     display: none;
   }

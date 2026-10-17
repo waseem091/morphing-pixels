@@ -2,19 +2,6 @@
 export const VARIANTS = ['square', 'grid', 'circle', 'line', 'triangle'] as const;
 export type Variant = (typeof VARIANTS)[number];
 
-const NAMES: Record<Variant, string> = {
-  square: 'Square',
-  grid: 'Grid',
-  circle: 'Circle',
-  line: 'Line',
-  triangle: 'Triangle',
-};
-
-export const variantLabel = (v: Variant) => NAMES[v];
-export const fontFamily = (v: Variant) => `Geist Pixel ${NAMES[v]}`;
-export const fontFile = (v: Variant) => `GeistPixel-${NAMES[v]}.woff2`;
-export const isVariant = (v: unknown): v is Variant => VARIANTS.includes(v as Variant);
-
 /**
  * One pixel's outline in its own cell (0–1 across and down, y pointing down),
  * as eight quadratic segments: [P0, C0, P1, C1, … P7, C7], where segment k

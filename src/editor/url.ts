@@ -1,9 +1,10 @@
-import { isVariant } from '../morph/variants';
-import { DEFAULT_SETTINGS, LIMITS, type Settings } from './settings';
+import { isVariant } from './faces';
+import { defaultSettings, LIMITS, type Settings } from './settings';
 
 // The settings live in the address, so a link opens the page exactly as it was
 // shared: ?text=hello&face=circle&size=96&color=ff0055. Only what differs from
-// the defaults is written.
+// the defaults is written, so a link that leaves the size alone opens at the
+// size that suits the screen it is opened on.
 
 const ALIGNS = ['left', 'center', 'right'] as const;
 
@@ -18,7 +19,7 @@ function hex(value: string | null): string | null {
 
 export function readSettings(search: string): Settings {
   const q = new URLSearchParams(search);
-  const s = { ...DEFAULT_SETTINGS };
+  const s = defaultSettings();
   const num = (key: string) => {
     const raw = q.get(key);
     const n = raw === null || raw.trim() === '' ? NaN : Number(raw);
@@ -45,7 +46,7 @@ export function readSettings(search: string): Settings {
 }
 
 export function writeSettings(s: Settings): string {
-  const d = DEFAULT_SETTINGS;
+  const d = defaultSettings();
   const q = new URLSearchParams();
   if (s.text !== d.text) q.set('text', s.text);
   if (s.variant !== d.variant) q.set('face', s.variant);

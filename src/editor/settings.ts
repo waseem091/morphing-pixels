@@ -34,6 +34,15 @@ export const DEFAULT_SETTINGS: Settings = {
   duration: 800,
 };
 
+/**
+ * The defaults for this screen: on a phone the text starts smaller, so two
+ * lines of it fit above the controls.
+ */
+export function defaultSettings(): Settings {
+  const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 600px)').matches;
+  return { ...DEFAULT_SETTINGS, fontSize: narrow ? 96 : DEFAULT_SETTINGS.fontSize };
+}
+
 export const LIMITS = {
   chars: 300,
   fontSize: [16, 320],

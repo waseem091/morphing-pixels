@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import MorphText from '../morph/MorphText';
+import PixelMorph from '../morph/PixelMorph';
 import type { Align } from '../morph/layout';
 import { VARIANTS, type Variant } from '../morph/variants';
 import ColorPicker from './ColorPicker';
 import { Tick } from './icons';
-import { DEFAULT_SETTINGS, LIMITS, type Settings } from './settings';
+import { defaultSettings, LIMITS, type Settings } from './settings';
+import { FILE_URL, prompt } from './snippet';
 import { readSettings, writeSettings } from './url';
 import VariantPicker from './VariantPicker';
 import './editor.css';
@@ -33,10 +34,11 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-// The controls, split in two for a phone; a wide screen shows them all.
+// The controls under the typeface, split in three for a phone; a wide screen shows them all.
 const TABS = [
   ['text', 'Text'],
   ['style', 'Style'],
+  ['color', 'Color'],
 ] as const;
 
 const ALIGNS: [Align, string][] = [
@@ -89,6 +91,8 @@ export default function Editor() {
   const [missing, setMissing] = useState<string[]>([]);
   const [tab, setTab] = useState<(typeof TABS)[number][0]>('text');
   const [shared, setShared] = useState<'done' | 'failed' | null>(null);
+  const [copiedFile, setCopiedFile] = useState<'done' | 'failed' | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState<'done' | 'failed' | null>(null);
 
   const set = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
 
@@ -144,6 +148,24 @@ export default function Editor() {
     window.setTimeout(() => setShared(null), 1800);
   }
 
+  async function copyFile() {
+    let ok = false;
+    try {
+      const res = await fetch(FILE_URL);
+      ok = res.ok && (await copyText(await res.text()));
+    } catch {
+      // Offline, or the file is not served here: the button says so.
+    }
+    setCopiedFile(ok ? 'done' : 'failed');
+    window.setTimeout(() => setCopiedFile(null), 1800);
+  }
+
+  async function copyPrompt() {
+    const ok = await copyText(prompt(settings, autoplay));
+    setCopiedPrompt(ok ? 'done' : 'failed');
+    window.setTimeout(() => setCopiedPrompt(null), 1800);
+  }
+
   return (
     <div className="editor" style={{ background: settings.background }}>
       <nav className="chips" aria-label="About this project">
@@ -174,10 +196,32 @@ export default function Editor() {
           )}
           <span aria-live="polite">{shared === 'done' ? 'Link copied' : shared === 'failed' ? 'Copy blocked' : 'Share'}</span>
         </button>
+        <button type="button" className="chip" onClick={copyFile}>
+          {copiedFile === 'done' ? (
+            <Tick />
+          ) : (
+            <svg
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+              <path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5" />
+            </svg>
+          )}
+          <span aria-live="polite">{copiedFile === 'done' ? 'Copied' : copiedFile === 'failed' ? 'Copy blocked' : 'Copy .TSX'}</span>
+        </button>
       </nav>
 
       <div className="stage">
-        <MorphText
+        <PixelMorph
+          as="h1"
           className="stage-text"
           text={settings.text}
           variant={settings.variant}
@@ -189,12 +233,12 @@ export default function Editor() {
           duration={settings.duration}
           replay={replay}
           replayFrom={previous}
-          onMissing={setMissing}
+          onMissingGlyphs={setMissing}
         />
       </div>
 
       <aside className="panel" aria-label="Customize" data-tab={tab}>
-        <div className="field">
+        <div className="field field-face">
           <span className="picker-label" id="variant-label">
             Typeface
           </span>
@@ -208,7 +252,7 @@ export default function Editor() {
           </button>
         </div>
 
-        {/* On a phone the rest is split in two; on a wide screen all of it shows and this row is hidden. */}
+        {/* On a phone the rest is split in three; on a wide screen all of it shows and this row is hidden. */}
         <div className="tabs" style={{ '--n': TABS.length, '--i': TABS.findIndex(([id]) => id === tab) } as CSSProperties}>
           <span className="slide" aria-hidden="true" />
           {TABS.map(([id, label]) => (
@@ -289,7 +333,9 @@ export default function Editor() {
               onChange={(duration) => set({ duration })}
             />
           </div>
+        </div>
 
+        <div className="group group-color">
           <div className="colors">
             <ColorPicker label="Background" value={settings.background} onChange={(background) => set({ background })} />
             <ColorPicker label="Text color" value={settings.color} onChange={(color) => set({ color })} />
@@ -300,10 +346,17 @@ export default function Editor() {
           <button type="button" onClick={() => setReplay((r) => r + 1)}>
             Replay
           </button>
-          <button type="button" onClick={() => setSettings((s) => ({ ...DEFAULT_SETTINGS, text: s.text, variant: s.variant }))}>
+          <button type="button" onClick={() => setSettings((s) => ({ ...defaultSettings(), text: s.text, variant: s.variant }))}>
             Reset
           </button>
+          <button type="button" className="primary prompt" onClick={copyPrompt}>
+            <span aria-live="polite">
+              {copiedPrompt === 'done' && <Tick />}
+              {copiedPrompt === 'done' ? 'Copied' : copiedPrompt === 'failed' ? 'Copy blocked' : 'Copy Prompt'}
+            </span>
+          </button>
         </div>
+        <p className="hint hint-install">Paste the prompt into your AI assistant and it adds this text to your project.</p>
       </aside>
     </div>
   );

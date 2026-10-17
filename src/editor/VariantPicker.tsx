@@ -1,5 +1,6 @@
 import { useRef, type CSSProperties, type KeyboardEvent } from 'react';
-import { fontFamily, variantLabel, VARIANTS, type Variant } from '../morph/variants';
+import { VARIANTS, type Variant } from '../morph/variants';
+import { fontFamily, variantLabel } from './faces';
 
 type Props = {
   value: Variant;
