@@ -1,6 +1,13 @@
 /** The five Geist Pixel typefaces. They share one bitmap per character and differ only in how a pixel is drawn. */
-export const VARIANTS = ['square', 'triangle', 'circle', 'grid', 'line'] as const;
+export const FACES = ['square', 'triangle', 'circle', 'grid', 'line'] as const;
+export type Face = (typeof FACES)[number];
+
+/** What the text can be set in: one of the faces, or 'salad', every pixel in a face of its own picked at random. */
+export const VARIANTS = [...FACES, 'salad'] as const;
 export type Variant = (typeof VARIANTS)[number];
+
+/** The face a pixel in `lane` (0–4, see layout) takes when the text is set in `v`. */
+export const faceOf = (v: Variant, lane: number): Face => (v === 'salad' ? FACES[lane % FACES.length] : v);
 
 /**
  * One pixel's outline in its own cell (0–1 across and down, y pointing down),
@@ -66,7 +73,7 @@ function circle(): Shape {
 }
 
 // Measured from the fonts, in units of a 38-unit cell.
-export const SHAPES: Record<Variant, Shape> = {
+export const SHAPES: Record<Face, Shape> = {
   // The whole cell, so neighbours merge into solid letters.
   square: polygon(SQUARE_POINTS),
   // A 30-unit square, 4 units in from each side: neighbours keep a slight gap.
@@ -105,7 +112,7 @@ function cornered(shape: Shape): Shape {
   return out;
 }
 
-const ROUNDING: Partial<Record<Variant, Shape>> = {
+const ROUNDING: Partial<Record<Face, Shape>> = {
   square: cornered(SHAPES.square),
   grid: cornered(SHAPES.grid),
   line: cornered(SHAPES.line),
@@ -115,18 +122,12 @@ const ROUNDING: Partial<Record<Variant, Shape>> = {
  * `v`'s pixel, written the way that morphs best into or out of `other`. Both
  * ways draw the same shape at rest; only the steps in between differ.
  */
-export function shapeFor(v: Variant, other: Variant | null): Shape {
+export function shapeFor(v: Face, other: Face | null): Shape {
   return (other === 'circle' && ROUNDING[v]) || SHAPES[v];
 }
 
 /** Every point at the middle of the cell: no pixel at all. The text grows out of this when it first appears. */
 export const NOTHING: Shape = new Float32Array(32).fill(0.5);
-
-/** Writes the shape `t` of the way from `a` to `b` into `out`. */
-export function mix(a: Shape, b: Shape, t: number, out: Shape): Shape {
-  for (let i = 0; i < 32; i++) out[i] = a[i] + (b[i] - a[i]) * t;
-  return out;
-}
 
 /** Whether every side is straight (its control point on the line between its ends), so it can be drawn with lines instead of curves. */
 export function isStraight(s: Shape): boolean {

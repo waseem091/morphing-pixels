@@ -16,7 +16,7 @@ npm run registry  # rebuild the copy-in component in public/r/
 
 The editor keeps its settings in the address (`?text=hello&face=circle&size=96&color=ff0055`),
 so **Share** copies a link that opens the page exactly as it is. **Autoplay** morphs through every
-face on its own. Press 1–5 to switch faces from the keyboard.
+face on its own. Press 1–6 to switch faces from the keyboard.
 
 ## Use it in your project
 
@@ -44,7 +44,7 @@ const [face, setFace] = useState<Variant>('square');
 | prop              | default        | what it does                                                       |
 | ----------------- | -------------- | ------------------------------------------------------------------ |
 | `text`            |                | the text; newlines start a new line, and lines wrap to fit         |
-| `variant`         | `'square'`     | `square`, `grid`, `circle`, `line` or `triangle`; changing it morphs every pixel |
+| `variant`         | `'square'`     | `square`, `triangle`, `circle`, `grid`, `line`, or `salad` (every pixel in a face of its own); changing it morphs every pixel |
 | `fontSize`        | `64`           | px; one pixel of the font is 0.038 of it                           |
 | `letterSpacing`   | `0`            | extra space after each character, in px                            |
 | `lineSpacing`     | `fontSize / 5` | extra space between lines, in px                                   |

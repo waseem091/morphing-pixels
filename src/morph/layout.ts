@@ -30,6 +30,8 @@ export type Layout = {
   pixels: Float32Array;
   /** For each pixel, which character of the (NFC-normalised) text it belongs to, counted in code points. */
   sources: Uint32Array;
+  /** For each pixel, its lane (0–4): which face it takes in salad. Fixed by its character and its place in it, so it keeps it as the text changes. */
+  lanes: Uint8Array;
   /** Each line's characters as laid out, for the selectable copy of the text: where the line starts, and each character with the room it takes (px). */
   lines: { x: number; top: number; chars: { ch: string; width: number }[] }[];
   /** The block of line boxes, in px. */
@@ -122,6 +124,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
   for (const l of lines) for (const g of l.glyphs) count += g.cells.length;
   const pixels = new Float32Array(count);
   const sources = new Uint32Array(count / 2);
+  const lanes = new Uint8Array(count / 2);
   let left = Infinity;
   let top = Infinity;
   let right = -Infinity;
@@ -137,6 +140,7 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
         const x = shift + g.x + g.cells[j] * cell;
         const y = baseline + g.cells[j + 1] * cell;
         sources[k / 2] = g.source;
+        lanes[k / 2] = lane(g.source, j);
         pixels[k++] = x;
         pixels[k++] = y;
         left = Math.min(left, x);
@@ -148,10 +152,17 @@ export function layout(text: string, { cell, letterSpacing, lineSpacing, maxWidt
   });
   if (count === 0) left = top = right = bottom = 0;
 
-  return { pixels, sources, lines: copy, width, height, ink: { left, top, right, bottom }, missing: [...missing] };
+  return { pixels, sources, lanes, lines: copy, width, height, ink: { left, top, right, bottom }, missing: [...missing] };
 }
 
 /** The text as layout reads it: composed characters (e + ´ is é), and every line break a plain newline. */
 export function normalize(text: string): string {
   return text.normalize('NFC').replace(/\r\n?/g, '\n');
+}
+
+// A scrambled but fixed pick of 0–4 for a pixel, from its character and its place in it.
+function lane(source: number, place: number): number {
+  let h = Math.imul(source + 1, 0x9e3779b1) ^ Math.imul(place + 1, 0x85ebca77);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  return ((h ^ (h >>> 13)) >>> 0) % 5;
 }

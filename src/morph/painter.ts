@@ -1,6 +1,6 @@
 import { easeOut } from './ease';
 import { paintPixels } from './paint';
-import { NOTHING, shapeFor, type Shape, type Variant } from './variants';
+import { faceOf, FACES, NOTHING, shapeFor, type Shape, type Variant } from './variants';
 
 // iOS Safari refuses to draw a canvas with more device pixels than this.
 const MAX_AREA = 16_000_000;
@@ -23,17 +23,21 @@ export class MorphPainter {
   private pixels: Float32Array = new Float32Array(0);
   // For each pixel, when its character was typed (performance.now() ms), or 0 if it is not growing.
   private born: Float64Array | null = null;
+  // For each pixel, its lane: which face it takes in salad (see layout).
+  private lanes: Uint8Array = new Uint8Array(0);
   private cell = 1;
   private color = '#000';
   private frame: Frame = { left: 0, top: 0, width: 0, height: 0 };
   private dpr = 1;
 
-  // The shape on screen, each of its 32 numbers pulled toward the target
-  // shape by a critically damped spring: it keeps its speed when the target
-  // changes mid-morph, so a new face bends the motion instead of stopping it.
-  private readonly now: Shape = NOTHING.slice();
-  private readonly velocity = new Float32Array(32);
-  private to: Shape = NOTHING;
+  // The shape on screen, one per lane, each of its 32 numbers pulled toward
+  // its target shape by a critically damped spring: it keeps its speed when
+  // the target changes mid-morph, so a new face bends the motion instead of
+  // stopping it. In a single face every lane heads for the same shape; in
+  // salad each lane heads for its own.
+  private readonly now: Shape[] = FACES.map(() => NOTHING.slice());
+  private readonly velocity = FACES.map(() => new Float32Array(32));
+  private to: Shape[] = FACES.map(() => NOTHING);
   // The face the current (or last) morph is heading for.
   private target: Variant | null = null;
   // When the spring may start moving (a delayed morph waits until then), and when it last moved.
@@ -61,9 +65,10 @@ export class MorphPainter {
    * the block the canvas covers, and optionally when each pixel's character
    * was typed, so new characters grow in instead of popping up.
    */
-  setScene(pixels: Float32Array, cell: number, frame: Frame, born: Float64Array | null = null) {
+  setScene(pixels: Float32Array, cell: number, frame: Frame, born: Float64Array | null = null, lanes: Uint8Array | null = null) {
     this.pixels = pixels;
     this.born = born;
+    this.lanes = lanes ?? new Uint8Array(pixels.length / 2);
     this.cell = cell;
     this.frame = frame;
     this.resize();
@@ -87,16 +92,21 @@ export class MorphPainter {
     const now = performance.now();
     this.step(now);
     const before = from === undefined ? this.target : from === 'nothing' ? null : from;
-    let start: Shape | null = null;
-    if (from === 'nothing') start = NOTHING;
-    else if (from) start = shapeFor(from, to);
-    // At rest on a face, start from that face written the best way for this morph.
-    else if (this.target && this.settled) start = shapeFor(this.target, to);
-    if (start) {
-      this.now.set(start);
-      this.velocity.fill(0);
-    }
-    this.to = shapeFor(to, before);
+    const resting = this.settled;
+    FACES.forEach((_, lane) => {
+      const face = faceOf(to, lane);
+      const was = before ? faceOf(before, lane) : null;
+      let start: Shape | null = null;
+      if (from === 'nothing') start = NOTHING;
+      else if (from) start = shapeFor(faceOf(from, lane), face);
+      // At rest on a face, start from that face written the best way for this morph.
+      else if (this.target && resting) start = shapeFor(faceOf(this.target, lane), face);
+      if (start) {
+        this.now[lane].set(start);
+        this.velocity[lane].fill(0);
+      }
+      this.to[lane] = shapeFor(face, was);
+    });
     this.target = to;
     this.start = now + delay;
     this.last = this.start;
@@ -125,24 +135,36 @@ export class MorphPainter {
       const h = Math.min(dt, 32);
       dt -= h;
       const decay = Math.exp(-w * h);
-      for (let i = 0; i < 32; i++) {
-        // The exact critically damped solution over h, for offset y and speed v.
-        const y = this.now[i] - this.to[i];
-        const v = this.velocity[i];
-        const c = v + w * y;
-        this.now[i] = this.to[i] + (y + c * h) * decay;
-        this.velocity[i] = (v - w * c * h) * decay;
+      for (let lane = 0; lane < FACES.length; lane++) {
+        const now = this.now[lane];
+        const to = this.to[lane];
+        const vel = this.velocity[lane];
+        for (let i = 0; i < 32; i++) {
+          // The exact critically damped solution over h, for offset y and speed v.
+          const y = now[i] - to[i];
+          const v = vel[i];
+          const c = v + w * y;
+          now[i] = to[i] + (y + c * h) * decay;
+          vel[i] = (v - w * c * h) * decay;
+        }
       }
     }
-    for (let i = 0; i < 32; i++) {
-      if (Math.abs(this.now[i] - this.to[i]) > 1e-4 || Math.abs(this.velocity[i]) > 1e-6) moving = true;
+    for (let lane = 0; lane < FACES.length && !moving; lane++) {
+      for (let i = 0; i < 32; i++) {
+        if (Math.abs(this.now[lane][i] - this.to[lane][i]) > 1e-4 || Math.abs(this.velocity[lane][i]) > 1e-6) moving = true;
+      }
     }
     if (!moving) this.snap();
   }
 
   private snap() {
-    this.now.set(this.to);
-    this.velocity.fill(0);
+    FACES.forEach((_, lane) => {
+      // Settled on one face, every lane takes the same plain shape (not the
+      // variant written for rounding into a circle), so they draw in one batch.
+      if (this.target && this.target !== 'salad') this.to[lane] = shapeFor(this.target, null);
+      this.now[lane].set(this.to[lane]);
+      this.velocity[lane].fill(0);
+    });
     this.settled = true;
   }
 
@@ -198,22 +220,28 @@ export class MorphPainter {
     const d = this.dpr;
     ctx.setTransform(d, 0, 0, d, -this.frame.left * d, -this.frame.top * d);
     ctx.fillStyle = this.color;
-    const shape = this.now;
-    if (!this.growing(time)) {
-      paintPixels(ctx, this.pixels, this.cell, shape);
+    // When every lane has the same shape, every pixel goes in one batch, so
+    // touching pixels (square, line) merge without seams.
+    const same = this.now.every((shape) => shape.every((v, i) => v === this.now[0][i]));
+    const growing = this.growing(time);
+    if (same && !growing) {
+      paintPixels(ctx, this.pixels, this.cell, this.now[0]);
       return;
     }
-    // Pixels still growing are drawn smaller, about their cell's middle; the
-    // ones typed in one go share a size, so each edit is one batch.
-    const born = this.born!;
-    const groups = new Map<number, number[]>();
-    for (let i = 0; i < born.length; i++) {
-      const key = time - born[i] < GROW_MS ? born[i] : -1;
+    // Otherwise a batch per lane (in salad), and pixels still growing in
+    // (typed a moment ago) drawn smaller about their cell's middle, a batch per edit.
+    const born = this.born;
+    const groups = new Map<string, { lane: number; at: number; xy: number[] }>();
+    for (let i = 0; i < this.lanes.length; i++) {
+      const lane = same ? 0 : this.lanes[i];
+      const at = growing && born && time - born[i] < GROW_MS ? born[i] : -1;
+      const key = `${lane}:${at}`;
       let group = groups.get(key);
-      if (!group) groups.set(key, (group = []));
-      group.push(this.pixels[i * 2], this.pixels[i * 2 + 1]);
+      if (!group) groups.set(key, (group = { lane, at, xy: [] }));
+      group.xy.push(this.pixels[i * 2], this.pixels[i * 2 + 1]);
     }
-    for (const [at, xy] of groups) {
+    for (const { lane, at, xy } of groups.values()) {
+      const shape = this.now[lane];
       const t = at < 0 ? 1 : easeOut(Math.max(0, (time - at) / GROW_MS));
       for (let i = 0; i < 32; i++) this.grown[i] = 0.5 + (shape[i] - 0.5) * t;
       paintPixels(ctx, Float32Array.from(xy), this.cell, this.grown);
