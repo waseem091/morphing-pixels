@@ -122,12 +122,6 @@ export function shapeFor(v: Variant, other: Variant | null): Shape {
 /** Every point at the middle of the cell: no pixel at all. The text grows out of this when it first appears. */
 export const NOTHING: Shape = new Float32Array(32).fill(0.5);
 
-/** Writes the shape `t` of the way from `a` to `b` into `out`. */
-export function mix(a: Shape, b: Shape, t: number, out: Shape): Shape {
-  for (let i = 0; i < 32; i++) out[i] = a[i] + (b[i] - a[i]) * t;
-  return out;
-}
-
 /** Whether every side is straight (its control point on the line between its ends), so it can be drawn with lines instead of curves. */
 export function isStraight(s: Shape): boolean {
   const e = 1e-5;

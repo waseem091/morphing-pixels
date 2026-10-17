@@ -1,4 +1,5 @@
 import { easeOut } from './ease';
+import { glPixels } from './gl';
 import { paintPixels } from './paint';
 import { NOTHING, shapeFor, type Shape, type Variant } from './variants';
 
@@ -192,29 +193,41 @@ export class MorphPainter {
   private draw(time: number) {
     const ctx = this.canvas.getContext('2d');
     if (!ctx) return;
+    const shape = this.now;
+    const growing = this.growing(time);
+    // Pixels still growing (typed a moment ago) are drawn smaller about their cell's middle.
+    const born = this.born;
+    let scales: Float32Array | null = null;
+    if (growing && born) {
+      scales = new Float32Array(born.length);
+      for (let i = 0; i < born.length; i++) scales[i] = time - born[i] < GROW_MS ? easeOut(Math.max(0, (time - born[i]) / GROW_MS)) : 1;
+    }
+    if (!this.pixels.length) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      return;
+    }
+    // On the GPU when it can: one draw call for every pixel.
+    const scene = { pixels: this.pixels, scales, cell: this.cell, shape, color: this.color, left: this.frame.left, top: this.frame.top, dpr: this.dpr };
+    if (glPixels(ctx, this.canvas.width, this.canvas.height, scene)) return;
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    if (!this.pixels.length) return;
     const d = this.dpr;
     ctx.setTransform(d, 0, 0, d, -this.frame.left * d, -this.frame.top * d);
     ctx.fillStyle = this.color;
-    const shape = this.now;
-    if (!this.growing(time)) {
+    if (!scales) {
       paintPixels(ctx, this.pixels, this.cell, shape);
       return;
     }
-    // Pixels still growing are drawn smaller, about their cell's middle; the
-    // ones typed in one go share a size, so each edit is one batch.
-    const born = this.born!;
+    // The ones typed in one go share a size, so each edit is one batch.
     const groups = new Map<number, number[]>();
-    for (let i = 0; i < born.length; i++) {
-      const key = time - born[i] < GROW_MS ? born[i] : -1;
-      let group = groups.get(key);
-      if (!group) groups.set(key, (group = []));
+    for (let i = 0; i < scales.length; i++) {
+      let group = groups.get(scales[i]);
+      if (!group) groups.set(scales[i], (group = []));
       group.push(this.pixels[i * 2], this.pixels[i * 2 + 1]);
     }
-    for (const [at, xy] of groups) {
-      const t = at < 0 ? 1 : easeOut(Math.max(0, (time - at) / GROW_MS));
+    for (const [t, xy] of groups) {
       for (let i = 0; i < 32; i++) this.grown[i] = 0.5 + (shape[i] - 0.5) * t;
       paintPixels(ctx, Float32Array.from(xy), this.cell, this.grown);
     }

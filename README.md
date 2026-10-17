@@ -85,11 +85,14 @@ anything: each pixel stays in its cell and changes shape.
   same at rest, but every corner then sits halfway between its two controls,
   like the circle's points do, so the steps between are smooth rounded
   rectangles instead of squares with kinked corners.
-- **Drawing.** One canvas. Rectangles (and every step between Square, Grid and
-  Line) go into one path filled once a frame, so touching pixels merge
-  without seams. Other shapes are filled a dozen pixels at a time: one path
-  with thousands of outlines gets slower than linearly in Chrome. Picking a
-  face mid-morph starts the next morph from the shape on screen.
+- **Drawing.** On the GPU: the shape on screen is turned into a small
+  triangle fan once a frame, and one instanced WebGL draw call stamps it at
+  every pixel, with multisampled edges, so touching pixels merge without
+  seams. It draws on one shared hidden WebGL canvas and copies into the
+  component's own canvas. Without WebGL 2 (or if its context is lost) it falls
+  back to Canvas 2D: rectangles in one path, other shapes a dozen pixels per
+  fill, since one path with thousands of outlines gets slower than linearly
+  in Chrome.
 - **Motion.** The shape on screen is pulled toward the new face by a
   critically damped spring, each of its 32 numbers with its own speed. A face
   picked mid-morph changes where the spring pulls, not how fast the pixels are
