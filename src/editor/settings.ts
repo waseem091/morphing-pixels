@@ -23,7 +23,7 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  text: 'Geist Pixel',
+  text: 'Morphing Pixels',
   variant: 'square',
   fontSize: 128,
   letterSpacing: 0,
