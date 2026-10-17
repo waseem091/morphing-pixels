@@ -52,8 +52,9 @@ body,
   margin: 0;
 }
 
+/* The editor fills the screen exactly, so the page never scrolls; it is not
+   overflow: hidden either, which would stop a phone's pull-to-refresh. */
 body {
-  overflow: hidden;
   background: #fff;
 }
 
