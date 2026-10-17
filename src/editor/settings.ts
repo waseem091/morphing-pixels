@@ -23,11 +23,11 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  text: 'Morphing Pixels',
+  text: 'morphing pixels',
   variant: 'square',
-  fontSize: 128,
+  fontSize: 90,
   letterSpacing: 0,
-  lineSpacing: 24,
+  lineSpacing: 0,
   align: 'center',
   color: '#000000',
   background: '#ffffff',
@@ -35,12 +35,12 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /**
- * The defaults for this screen: on a phone the text starts smaller, so two
- * lines of it fit above the controls.
+ * The defaults for this screen: on a phone the text starts smaller, so
+ * "morphing" fits on one line instead of breaking mid-word.
  */
 export function defaultSettings(): Settings {
   const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 600px)').matches;
-  return { ...DEFAULT_SETTINGS, fontSize: narrow ? 96 : DEFAULT_SETTINGS.fontSize };
+  return { ...DEFAULT_SETTINGS, fontSize: narrow ? 72 : DEFAULT_SETTINGS.fontSize };
 }
 
 export const LIMITS = {
