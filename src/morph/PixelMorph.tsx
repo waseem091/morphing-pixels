@@ -33,13 +33,8 @@ export type PixelMorphProps = {
   lineSpacing?: number;
   /** Any CSS colour, var(--x) included. Defaults to the colour the component inherits. */
   color?: string;
-  /** How long one pixel's morph takes, in ms. Default 800. */
+  /** How long one morph takes, in ms. Default 800. */
   duration?: number;
-  /**
-   * Sweep the morph across the text from left to right: the rightmost pixels
-   * start this many ms after the leftmost. 0 morphs every pixel at once. Default 0.
-   */
-  stagger?: number;
   /** How the lines line up, and where the text sits in its width. Default 'left'. */
   align?: Align;
   /**
@@ -75,7 +70,6 @@ export default function PixelMorph({
   lineSpacing = fontSize / 5,
   color,
   duration = 800,
-  stagger = 0,
   align = 'left',
   cycle = false,
   hold = 900,
@@ -99,9 +93,9 @@ export default function PixelMorph({
   const face = faces && faces.length > 1 ? faces[(Math.max(0, faces.indexOf(variant)) + turns) % faces.length] : variant;
 
   // Read by the effects below without restarting them.
-  const latest = useRef({ face, duration, stagger, hold, appear, replayFrom, onMissingGlyphs });
+  const latest = useRef({ face, duration, hold, appear, replayFrom, onMissingGlyphs });
   useLayoutEffect(() => {
-    latest.current = { face, duration, stagger, hold, appear, replayFrom, onMissingGlyphs };
+    latest.current = { face, duration, hold, appear, replayFrom, onMissingGlyphs };
   });
 
   // Each turn of the cycle is timed when it starts, so a new duration or hold
@@ -113,7 +107,7 @@ export default function PixelMorph({
       timer = window.setTimeout(() => {
         setTurns((t) => t + 1);
         wait();
-      }, latest.current.duration + latest.current.stagger + latest.current.hold);
+      }, latest.current.duration + latest.current.hold);
     };
     wait();
     return () => window.clearTimeout(timer);
@@ -210,16 +204,14 @@ export default function PixelMorph({
     const first = !introduced.current;
     introduced.current = true;
     const ms = reduced ? 0 : latest.current.duration;
-    const sweep = reduced ? 0 : latest.current.stagger;
     if (first && !latest.current.appear) painterRef.current?.morph(face, { from: face, duration: 0 });
-    else painterRef.current?.morph(face, { duration: ms, stagger: sweep, delay: first ? INTRO_DELAY_MS : 0 });
+    else painterRef.current?.morph(face, { duration: ms, delay: first ? INTRO_DELAY_MS : 0 });
   }, [face]);
 
   useLayoutEffect(() => {
     if (!replay) return;
-    const { face: to, replayFrom: from, duration: ms, stagger: sweep } = latest.current;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    painterRef.current?.morph(to, { from: from ?? 'nothing', duration: reduced ? 0 : ms, stagger: reduced ? 0 : sweep });
+    const { face: to, replayFrom: from, duration: ms } = latest.current;
+    painterRef.current?.morph(to, { from: from ?? 'nothing', duration: ms });
   }, [replay]);
 
   const justify = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';

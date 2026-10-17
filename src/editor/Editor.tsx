@@ -104,11 +104,9 @@ export default function Editor() {
   const next = () => pick(VARIANTS[(VARIANTS.indexOf(settings.variant) + 1) % VARIANTS.length]);
 
   // Read by the keyboard and autoplay timers, which outlive any one render.
-  // One autoplay turn: the whole staggered morph, then a rest.
-  const turn = settings.duration + settings.stagger;
-  const actions = useRef({ pick, next, turn });
+  const actions = useRef({ pick, next, duration: settings.duration });
   useEffect(() => {
-    actions.current = { pick, next, turn };
+    actions.current = { pick, next, duration: settings.duration };
   });
 
   // Starts the current face's autoplay turn over; a no-op while autoplay is off.
@@ -136,8 +134,8 @@ export default function Editor() {
   }, []);
 
   // Autoplay: morph to the next face at once, then keep going round. Each turn
-  // is timed by the duration and stagger its morph started with, so dragging a
-  // slider never moves it on: new values take over from the next face.
+  // is timed by the duration its morph started with, so dragging a slider
+  // never moves it on: a new duration takes over from the next face.
   useEffect(() => {
     if (!autoplay) return;
     let timer = 0;
@@ -146,7 +144,7 @@ export default function Editor() {
       timer = window.setTimeout(() => {
         actions.current.next();
         turn();
-      }, actions.current.turn + HOLD_MS);
+      }, actions.current.duration + HOLD_MS);
     };
     restartTurn.current = turn;
     actions.current.next();
@@ -258,7 +256,6 @@ export default function Editor() {
           align={settings.align}
           color={settings.color}
           duration={settings.duration}
-          stagger={settings.stagger}
           replay={replay}
           replayFrom={previous}
           onMissingGlyphs={setMissing}
@@ -359,15 +356,6 @@ export default function Editor() {
               step={50}
               unit="ms"
               onChange={(duration) => set({ duration })}
-            />
-            <Slider
-              id="stagger"
-              label="Stagger"
-              value={settings.stagger}
-              range={LIMITS.stagger}
-              step={50}
-              unit="ms"
-              onChange={(stagger) => set({ stagger })}
             />
           </div>
         </div>

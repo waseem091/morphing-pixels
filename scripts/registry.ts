@@ -117,8 +117,7 @@ Text in Geist Pixel that morphs between its five faces. One React component in o
 | \`letterSpacing\` | \`0\`               | extra space after each character, in px                             |
 | \`lineSpacing\`   | \`fontSize / 5\`    | extra space between lines, in px                                    |
 | \`color\`         | inherited         | any CSS colour, var(--x) included                                   |
-| \`duration\`      | \`800\`             | ms one pixel's morph takes                                          |
-| \`stagger\`       | \`0\`               | ms the rightmost pixels start after the leftmost, so the morph sweeps left to right |
+| \`duration\`      | \`800\`             | ms one morph takes                                                  |
 | \`align\`         | \`'left'\`          | left, center or right: how the lines line up and where the text sits in its width |
 | \`cycle\`         | \`false\`           | \`true\` keeps morphing through every face on its own; or a list of faces to go round, e.g. \`['square', 'circle']\` |
 | \`hold\`          | \`900\`             | with cycle: ms each face rests between morphs                       |
