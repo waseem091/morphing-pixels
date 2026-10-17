@@ -1,6 +1,7 @@
 import { easeOut } from './ease';
 import { glPixels } from './gl';
 import { paintPixels } from './paint';
+import { atRest, springStep } from './spring';
 import { NOTHING, shapeFor, type Shape, type Variant } from './variants';
 
 // iOS Safari refuses to draw a canvas with more device pixels than this.
@@ -118,27 +119,10 @@ export class MorphPainter {
       return;
     }
     // Long gaps (a hidden tab) are taken in pieces, so the spring stays exact.
-    let dt = Math.min(time - this.last, 1000);
+    const dt = Math.min(time - this.last, 1000);
     this.last = time;
-    const w = this.omega;
-    let moving = false;
-    while (dt > 0) {
-      const h = Math.min(dt, 32);
-      dt -= h;
-      const decay = Math.exp(-w * h);
-      for (let i = 0; i < 32; i++) {
-        // The exact critically damped solution over h, for offset y and speed v.
-        const y = this.now[i] - this.to[i];
-        const v = this.velocity[i];
-        const c = v + w * y;
-        this.now[i] = this.to[i] + (y + c * h) * decay;
-        this.velocity[i] = (v - w * c * h) * decay;
-      }
-    }
-    for (let i = 0; i < 32; i++) {
-      if (Math.abs(this.now[i] - this.to[i]) > 1e-4 || Math.abs(this.velocity[i]) > 1e-6) moving = true;
-    }
-    if (!moving) this.snap();
+    springStep(this.now, this.velocity, this.to, this.omega, dt);
+    if (atRest(this.now, this.velocity, this.to)) this.snap();
   }
 
   private snap() {

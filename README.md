@@ -10,6 +10,7 @@ Live at [geist-pixel-animation.vercel.app](https://geist-pixel-animation.vercel.
 npm install
 npm run dev       # the editor on http://localhost:5173
 npm run build
+npm test          # unit tests: glyphs, layout, shapes, spring, settings
 npm run glyphs    # regenerate src/morph/glyph-data.ts from the font
 npm run registry  # rebuild the copy-in component in public/r/
 ```

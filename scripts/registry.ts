@@ -16,7 +16,7 @@ const NAME = 'pixel-morph';
 const SITE = 'https://geist-pixel-animation.vercel.app';
 
 // Dependency order: each module only uses what comes before it.
-const MODULES = ['encoding.ts', 'glyph-data.ts', 'glyphs.ts', 'layout.ts', 'variants.ts', 'ease.ts', 'paint.ts', 'gl.ts', 'painter.ts', 'PixelMorph.tsx'];
+const MODULES = ['encoding.ts', 'glyph-data.ts', 'glyphs.ts', 'layout.ts', 'variants.ts', 'ease.ts', 'spring.ts', 'paint.ts', 'gl.ts', 'painter.ts', 'PixelMorph.tsx'];
 const MAIN = 'PixelMorph.tsx';
 // Exports from the helper modules that the installed file should still offer.
 const PUBLIC = new Set(['VARIANTS', 'Variant', 'Align']);

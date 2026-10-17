@@ -9,7 +9,8 @@
     "registry": "tsx scripts/registry.ts",
     "glyphs": "tsx scripts/glyphs.ts",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "react": "^19.2.8",
