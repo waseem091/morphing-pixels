@@ -6,6 +6,8 @@ import { mix, NOTHING, shapeFor, type Shape, type Variant } from './variants';
 const MAX_AREA = 16_000_000;
 // How long a newly typed character takes to grow to full size, in ms.
 const GROW_MS = 280;
+// How many steps the stagger sweeps across the text in; pixels in one step share a shape.
+const BANDS = 48;
 
 /** The part of the block the canvas covers, in px from the block's top-left. */
 export type Frame = { left: number; top: number; width: number; height: number };
@@ -26,14 +28,19 @@ export class MorphPainter {
   private frame: Frame = { left: 0, top: 0, width: 0, height: 0 };
   private dpr = 1;
 
-  private from: Shape = NOTHING;
+  // The morph is staggered across the text from left to right: pixels fall
+  // into BANDS columns of the block, and each band starts its morph a little
+  // after the one to its left. Each band remembers the shape it started from,
+  // so a new morph begun part way through starts every band where it is.
+  private bands: Uint8Array = new Uint8Array(0);
+  private from: Shape[] = new Array<Shape>(BANDS).fill(NOTHING);
   private to: Shape = NOTHING;
   // The face the current (or last) morph is heading for.
   private target: Variant | null = null;
   private start = 0;
   private duration = 0;
+  private stagger = 0;
   private raf = 0;
-  private readonly now = new Float32Array(32);
   private readonly grown = new Float32Array(32);
 
   constructor(canvas: HTMLCanvasElement) {
@@ -55,6 +62,7 @@ export class MorphPainter {
   setScene(pixels: Float32Array, cell: number, frame: Frame, born: Float64Array | null = null) {
     this.pixels = pixels;
     this.born = born;
+    this.bands = bandsOf(pixels);
     this.cell = cell;
     this.frame = frame;
     this.resize();
@@ -70,37 +78,49 @@ export class MorphPainter {
   }
 
   /**
-   * Morphs into face `to` over `duration` ms, starting after `delay` ms: from
-   * the shape on screen, or from face `from` ('nothing' grows the pixels out
-   * of thin air).
+   * Morphs into face `to`: from the shape on screen, or from face `from`
+   * ('nothing' grows the pixels out of thin air). The leftmost pixels start
+   * after `delay` ms, the rightmost `stagger` ms after them, and each takes
+   * `duration` ms.
    */
-  morph(to: Variant, { from, duration, delay = 0 }: { from?: Variant | 'nothing'; duration: number; delay?: number }) {
+  morph(
+    to: Variant,
+    { from, duration, delay = 0, stagger = 0 }: { from?: Variant | 'nothing'; duration: number; delay?: number; stagger?: number },
+  ) {
     const now = performance.now();
     const before = from === undefined ? this.target : from === 'nothing' ? null : from;
-    if (from === 'nothing') this.from = NOTHING;
-    else if (from) this.from = shapeFor(from, to);
+    let start: Shape | null = null;
+    if (from === 'nothing') start = NOTHING;
+    else if (from) start = shapeFor(from, to);
     // At rest on a face, start from that face written the best way for this morph.
-    else if (this.target && this.progress(now) >= 1) this.from = shapeFor(this.target, to);
-    // Part way through a morph, start from exactly what is on screen.
-    else this.from = this.shapeAt(now, new Float32Array(32));
+    else if (this.target && this.done(now)) start = shapeFor(this.target, to);
+    // Part way through a morph, each band starts from exactly what is on screen.
+    this.from = start ? new Array<Shape>(BANDS).fill(start) : this.from.map((_, b) => this.bandShape(b, now, new Float32Array(32)));
     this.to = shapeFor(to, before);
     this.target = to;
     this.start = now + delay;
     this.duration = duration;
-    if (duration <= 0 && delay <= 0) {
+    this.stagger = stagger;
+    if (this.done(now)) {
       this.draw(now);
       return;
     }
     if (!this.raf) this.raf = requestAnimationFrame(this.tick);
   }
 
-  private progress(time: number): number {
-    if (this.duration <= 0) return time >= this.start ? 1 : 0;
-    return Math.min(1, Math.max(0, (time - this.start) / this.duration));
+  // How far band `b` is through its morph, 0 to 1, before easing.
+  private bandProgress(b: number, time: number): number {
+    const begin = this.start + (this.stagger * b) / (BANDS - 1);
+    if (this.duration <= 0) return time >= begin ? 1 : 0;
+    return Math.min(1, Math.max(0, (time - begin) / this.duration));
   }
 
-  private shapeAt(time: number, out: Shape): Shape {
-    return mix(this.from, this.to, ease(this.progress(time)), out);
+  private bandShape(b: number, time: number, out: Shape): Shape {
+    return mix(this.from[b], this.to, ease(this.bandProgress(b, time)), out);
+  }
+
+  private done(time: number): boolean {
+    return time >= this.start + this.stagger + Math.max(0, this.duration);
   }
 
   private growing(time: number): boolean {
@@ -114,7 +134,7 @@ export class MorphPainter {
     // rAF's timestamp is when the frame began, which can be a moment before a morph that started in it.
     const now = Math.max(time, performance.now());
     this.draw(now);
-    this.raf = this.progress(now) < 1 || this.growing(now) ? requestAnimationFrame(this.tick) : 0;
+    this.raf = !this.done(now) || this.growing(now) ? requestAnimationFrame(this.tick) : 0;
   };
 
   private onResize = () => {
@@ -154,25 +174,51 @@ export class MorphPainter {
     const d = this.dpr;
     ctx.setTransform(d, 0, 0, d, -this.frame.left * d, -this.frame.top * d);
     ctx.fillStyle = this.color;
-    const shape = this.shapeAt(time, this.now);
-    if (!this.growing(time)) {
-      paintPixels(ctx, this.pixels, this.cell, shape);
+    const growing = this.growing(time);
+    if (this.done(time) && !growing) {
+      paintPixels(ctx, this.pixels, this.cell, this.to);
       return;
     }
-    // Pixels still growing are drawn smaller, about their cell's middle; the
-    // ones typed in one go share a size, so each edit is one batch.
-    const born = this.born!;
-    const groups = new Map<number, number[]>();
-    for (let i = 0; i < born.length; i++) {
-      const key = time - born[i] < GROW_MS ? born[i] : -1;
-      let group = groups.get(key);
-      if (!group) groups.set(key, (group = []));
-      group.push(this.pixels[i * 2], this.pixels[i * 2 + 1]);
+    // Pixels that share a shape go into one batch: every band that has
+    // finished, every band yet to start from the same shape, each band in
+    // between on its own. Pixels still growing in (typed a moment ago) are
+    // drawn smaller about their cell's middle, a batch per edit.
+    const born = this.born;
+    const groups = new Map<string, { band: number; at: number; xy: number[] }>();
+    const bandKey = new Array<string>(BANDS);
+    for (let b = 0; b < BANDS; b++) {
+      const t = this.bandProgress(b, time);
+      bandKey[b] = t >= 1 ? 'to' : t <= 0 && this.from[b] === this.from[0] ? 'from' : `b${b}`;
     }
-    for (const [at, xy] of groups) {
-      const t = at < 0 ? 1 : easeOut(Math.max(0, (time - at) / GROW_MS));
-      for (let i = 0; i < 32; i++) this.grown[i] = 0.5 + (shape[i] - 0.5) * t;
-      paintPixels(ctx, Float32Array.from(xy), this.cell, this.grown);
+    for (let i = 0; i < this.bands.length; i++) {
+      const band = this.bands[i];
+      const at = born && time - born[i] < GROW_MS ? born[i] : -1;
+      const key = `${bandKey[band]}:${at}`;
+      let group = groups.get(key);
+      if (!group) groups.set(key, (group = { band, at, xy: [] }));
+      group.xy.push(this.pixels[i * 2], this.pixels[i * 2 + 1]);
+    }
+    for (const { band, at, xy } of groups.values()) {
+      const shape = this.bandShape(band, time, this.grown);
+      if (at >= 0) {
+        const t = easeOut(Math.max(0, (time - at) / GROW_MS));
+        for (let i = 0; i < 32; i++) shape[i] = 0.5 + (shape[i] - 0.5) * t;
+      }
+      paintPixels(ctx, Float32Array.from(xy), this.cell, shape);
     }
   }
+}
+
+// Which band of the stagger each pixel is in: its place from the left edge of the text to the right.
+function bandsOf(pixels: Float32Array): Uint8Array {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < pixels.length; i += 2) {
+    lo = Math.min(lo, pixels[i]);
+    hi = Math.max(hi, pixels[i]);
+  }
+  const bands = new Uint8Array(pixels.length / 2);
+  const span = hi - lo;
+  if (span > 0) for (let i = 0; i < bands.length; i++) bands[i] = Math.min(BANDS - 1, Math.floor(((pixels[i * 2] - lo) / span) * BANDS));
+  return bands;
 }

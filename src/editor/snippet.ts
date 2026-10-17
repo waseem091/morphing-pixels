@@ -6,7 +6,7 @@ export const GUIDE_URL = 'https://geist-pixel-animation.vercel.app/r/pixel-morph
 export const FILE_URL = '/r/pixel-morph.tsx';
 
 // <PixelMorph>'s own defaults, which the tag can leave out.
-const COMPONENT = { variant: 'square', letterSpacing: 0, duration: 800, align: 'left' } as const;
+const COMPONENT = { variant: 'square', letterSpacing: 0, duration: 800, stagger: 0, align: 'left' } as const;
 
 /** The component tag for what is on screen, with only the props that differ from the component's defaults. */
 export function snippet(s: Settings, cycle: boolean): string {
@@ -19,6 +19,7 @@ export function snippet(s: Settings, cycle: boolean): string {
   if (s.color !== DEFAULT_SETTINGS.color) props.push(`color="${s.color}"`);
   if (s.align !== COMPONENT.align) props.push(`align="${s.align}"`);
   if (s.duration !== COMPONENT.duration) props.push(`duration={${s.duration}}`);
+  if (s.stagger !== COMPONENT.stagger) props.push(`stagger={${s.stagger}}`);
   if (cycle) props.push('cycle');
   const line = `<PixelMorph ${props.join(' ')} />`;
   return line.length <= 80 ? line : `<PixelMorph\n${props.map((p) => `  ${p}`).join('\n')}\n/>`;

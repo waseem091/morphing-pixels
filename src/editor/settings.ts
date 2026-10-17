@@ -18,8 +18,10 @@ export type Settings = {
   color: string;
   /** Page background, `#rrggbb`. */
   background: string;
-  /** How long one morph takes, in ms. */
+  /** How long one pixel's morph takes, in ms. */
   duration: number;
+  /** How much later the rightmost pixels start than the leftmost, in ms. */
+  stagger: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   color: '#000000',
   background: '#ffffff',
   duration: 800,
+  stagger: 2000,
 };
 
 /**
@@ -49,4 +52,5 @@ export const LIMITS = {
   letterSpacing: [-10, 60],
   lineSpacing: [0, 200],
   duration: [200, 3000],
+  stagger: [0, 3000],
 } as const;

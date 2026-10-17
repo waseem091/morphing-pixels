@@ -42,6 +42,8 @@ export function readSettings(search: string): Settings {
   s.background = hex(q.get('bg')) ?? s.background;
   const duration = num('duration');
   if (duration !== null) s.duration = Math.round(clamp(duration, LIMITS.duration));
+  const stagger = num('stagger');
+  if (stagger !== null) s.stagger = Math.round(clamp(stagger, LIMITS.stagger));
   return s;
 }
 
@@ -57,6 +59,7 @@ export function writeSettings(s: Settings): string {
   if (s.color !== d.color) q.set('color', s.color.slice(1));
   if (s.background !== d.background) q.set('bg', s.background.slice(1));
   if (s.duration !== d.duration) q.set('duration', String(s.duration));
+  if (s.stagger !== d.stagger) q.set('stagger', String(s.stagger));
   const query = q.toString();
   return query ? `?${query}` : '';
 }

@@ -49,7 +49,8 @@ const [face, setFace] = useState<Variant>('square');
 | `letterSpacing`   | `0`            | extra space after each character, in px                            |
 | `lineSpacing`     | `fontSize / 5` | extra space between lines, in px                                   |
 | `color`           | inherited      | any CSS colour, `var(--x)` included                                |
-| `duration`        | `800`          | ms one morph takes                                                 |
+| `duration`        | `800`          | ms one pixel's morph takes                                         |
+| `stagger`         | `0`            | ms the rightmost pixels start after the leftmost: the morph sweeps left to right |
 | `align`           | `'left'`       | how the lines line up, and where the text sits in its width        |
 | `cycle`           | `false`        | `true` morphs through every face on its own; or a list of faces    |
 | `hold`            | `900`          | with `cycle`: ms each face rests                                    |
