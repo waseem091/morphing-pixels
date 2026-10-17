@@ -1,6 +1,6 @@
 import { ease } from './ease';
-import { tracePixels } from './paint';
-import { mix, NOTHING, type Shape } from './variants';
+import { paintPixels } from './paint';
+import { mix, NOTHING, shapeFor, type Shape, type Variant } from './variants';
 
 // iOS Safari refuses to draw a canvas with more device pixels than this.
 const MAX_AREA = 16_000_000;
@@ -24,6 +24,8 @@ export class MorphPainter {
 
   private from: Shape = NOTHING;
   private to: Shape = NOTHING;
+  // The face the current (or last) morph is heading for.
+  private target: Variant | null = null;
   private start = 0;
   private duration = 0;
   private raf = 0;
@@ -54,11 +56,22 @@ export class MorphPainter {
     this.draw(performance.now());
   }
 
-  /** Morphs from the shape on screen (or `from`) to `to` over `duration` ms, starting after `delay` ms. */
-  morph(to: Shape, { from, duration, delay = 0 }: { from?: Shape; duration: number; delay?: number }) {
+  /**
+   * Morphs into face `to` over `duration` ms, starting after `delay` ms: from
+   * the shape on screen, or from face `from` ('nothing' grows the pixels out
+   * of thin air).
+   */
+  morph(to: Variant, { from, duration, delay = 0 }: { from?: Variant | 'nothing'; duration: number; delay?: number }) {
     const now = performance.now();
-    this.from = from ?? this.shapeAt(now, new Float32Array(32));
-    this.to = to;
+    const before = from === undefined ? this.target : from === 'nothing' ? null : from;
+    if (from === 'nothing') this.from = NOTHING;
+    else if (from) this.from = shapeFor(from, to);
+    // At rest on a face, start from that face written the best way for this morph.
+    else if (this.target && this.progress(now) >= 1) this.from = shapeFor(this.target, to);
+    // Part way through a morph, start from exactly what is on screen.
+    else this.from = this.shapeAt(now, new Float32Array(32));
+    this.to = shapeFor(to, before);
+    this.target = to;
     this.start = now + delay;
     this.duration = duration;
     if (duration <= 0 && delay <= 0) {
@@ -118,8 +131,6 @@ export class MorphPainter {
     const sy = this.canvas.height / Math.max(1e-6, this.frame.height);
     ctx.setTransform(sx, 0, 0, sy, -this.frame.left * sx, -this.frame.top * sy);
     ctx.fillStyle = this.color;
-    ctx.beginPath();
-    tracePixels(ctx, this.pixels, this.cell, this.shapeAt(time, this.now));
-    ctx.fill();
+    paintPixels(ctx, this.pixels, this.cell, this.shapeAt(time, this.now));
   }
 }

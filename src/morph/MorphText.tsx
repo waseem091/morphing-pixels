@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CELL_EM, layout, type Align } from './layout';
 import { MorphPainter } from './painter';
-import { NOTHING, SHAPES, type Variant } from './variants';
+import type { Variant } from './variants';
 
 // The first morph grows the text out of nothing, a moment after the page appears.
 const INTRO_DELAY_MS = 150;
@@ -110,13 +110,13 @@ export default function MorphText({
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const delay = introduced.current ? 0 : INTRO_DELAY_MS;
     introduced.current = true;
-    painterRef.current?.morph(SHAPES[variant], { duration: reduced ? 0 : latest.current.duration, delay });
+    painterRef.current?.morph(variant, { duration: reduced ? 0 : latest.current.duration, delay });
   }, [variant]);
 
   useLayoutEffect(() => {
     if (!replay) return;
     const { variant: to, replayFrom: from, duration: ms } = latest.current;
-    painterRef.current?.morph(SHAPES[to], { from: from ? SHAPES[from] : NOTHING, duration: ms });
+    painterRef.current?.morph(to, { from: from ?? 'nothing', duration: ms });
   }, [replay]);
 
   return (

@@ -102,6 +102,36 @@ export const SHAPES: Record<Variant, Shape> = {
   ]),
 };
 
+// The same rectangle with each control point on the corner its side runs into
+// instead of halfway along the side: the sides stay straight, but now every
+// corner sits halfway between its two controls, like each point of the
+// circle does. A morph between the two keeps that true at every step, so the
+// corners round off smoothly instead of kinking.
+function cornered(shape: Shape): Shape {
+  const out = shape.slice();
+  for (let k = 0; k < 8; k++) {
+    // Even points are the middles of the sides, odd points the corners.
+    const corner = k % 2 === 0 ? ((k + 1) % 8) * 4 : k * 4;
+    out[k * 4 + 2] = shape[corner];
+    out[k * 4 + 3] = shape[corner + 1];
+  }
+  return out;
+}
+
+const ROUNDING: Partial<Record<Variant, Shape>> = {
+  square: cornered(SHAPES.square),
+  grid: cornered(SHAPES.grid),
+  line: cornered(SHAPES.line),
+};
+
+/**
+ * `v`'s pixel, written the way that morphs best into or out of `other`. Both
+ * ways draw the same shape at rest; only the steps in between differ.
+ */
+export function shapeFor(v: Variant, other: Variant | null): Shape {
+  return (other === 'circle' && ROUNDING[v]) || SHAPES[v];
+}
+
 /** Every point at the middle of the cell: no pixel at all. The text grows out of this when it first appears. */
 export const NOTHING: Shape = new Float32Array(32).fill(0.5);
 
@@ -111,12 +141,14 @@ export function mix(a: Shape, b: Shape, t: number, out: Shape): Shape {
   return out;
 }
 
-/** Whether every side is straight, so it can be drawn with lines instead of curves. */
+/** Whether every side is straight (its control point on the line between its ends), so it can be drawn with lines instead of curves. */
 export function isStraight(s: Shape): boolean {
-  for (let k = 0; k < 8; k++) {
-    const i = k * 4;
-    const j = (i + 4) % 32;
-    if (Math.abs(s[i + 2] - (s[i] + s[j]) / 2) > 1e-4 || Math.abs(s[i + 3] - (s[i + 1] + s[j + 1]) / 2) > 1e-4) return false;
+  const e = 1e-5;
+  for (let k = 0; k < 32; k += 4) {
+    const n = (k + 4) % 32;
+    const [ax, ay, cx, cy, bx, by] = [s[k], s[k + 1], s[k + 2], s[k + 3], s[n], s[n + 1]];
+    if (Math.abs((bx - ax) * (cy - ay) - (by - ay) * (cx - ax)) > e) return false;
+    if (cx < Math.min(ax, bx) - e || cx > Math.max(ax, bx) + e || cy < Math.min(ay, by) - e || cy > Math.max(ay, by) + e) return false;
   }
   return true;
 }
